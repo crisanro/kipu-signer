@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  signer-node:
+    build: .
+    container_name: kipu_signer_node
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      # Aquí defines la clave que usas en cryptoUtils.js
+      - ENCRYPTION_KEY=tu_clave_secreta_aqui 
+      - DEBUG_SIGNER=true
+    restart: always
