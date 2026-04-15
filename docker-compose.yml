@@ -9,7 +9,5 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=production
-      # Aquí defines la clave que usas en cryptoUtils.js
-      - ENCRYPTION_KEY=tu_clave_secreta_aqui 
       - DEBUG_SIGNER=true
     restart: always
