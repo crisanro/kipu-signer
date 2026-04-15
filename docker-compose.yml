@@ -11,3 +11,9 @@ services:
       - NODE_ENV=production
       - DEBUG_SIGNER=true
     restart: always
+    networks:          # ← mismo nivel que ports, volumes, etc.
+      - red_infraestructura
+
+networks:
+  red_infraestructura:
+    external: true
