@@ -139,7 +139,7 @@ async function renderA4(doc, infoTrib, infoFac, detalles, impTotales, pagosArr, 
     doc.font('Helvetica').text('NORMAL', rightColX + 44, 148);
 
     // QR — esquina superior derecha
-    const qrUrl = `https://kipu.ec/consultar?id=${infoTrib.claveAcceso}`;
+    const qrUrl = `https://consulta.kipu.ec/?id=${infoTrib.claveAcceso}`;
     const qrBuffer = await QRCode.toBuffer(qrUrl, { margin: 1, width: 65 });
     doc.image(qrBuffer, rightColX + rightColW - 68, 88, { width: 62 });
 
