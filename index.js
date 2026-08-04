@@ -44,6 +44,8 @@ app.post('/api/firmar', async (req, res) => {
 
         // Construcción del String XML
         xmlString = create(xmlObj).end({ prettyPrint: false });
+        //console.log("[XML ANTES DE FIRMAR]:", xmlString);
+
 
         // 2. PROCESAMIENTO DE FIRMA P12
         const password = decrypt(emisor.p12_pass);
