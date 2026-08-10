@@ -19,9 +19,6 @@ const formatoA4  = require('./formatos/a4');
 const formatoT80 = require('./formatos/t80');
 const formatoT58 = require('./formatos/t58');
 
-console.log('[RIDE] formatoA4 keys:', Object.keys(formatoA4));
-console.log('[RIDE] formatoA4.dibujarCabecera:', typeof formatoA4.dibujarCabecera);
-
 const FORMATOS = {
     'a4':  formatoA4,
     't80': formatoT80,
@@ -108,10 +105,8 @@ async function generarPDFStream(
     }
 
     // ── Generar PDF ────────────────────────────────────────────────────────────
-    console.log(`[RIDE] Generando ${codDoc} en formato ${fmtKey}...`);
     try {
         const stream = await renderFn(comprobante, emisor, estadoFactura, fechaAuth, formato);
-        console.log(`[RIDE] ✅ PDF generado correctamente.`);
         return stream;
     } catch (e) {
         console.error(`[RIDE] ❌ Error generando PDF:`, e.message);
