@@ -364,6 +364,8 @@ function dibujarItems(doc, detalles, currentY) {
 function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
     const { rightFtrX, rightFtrW, rowH, colorGrisMedio, colorGrisOscuro } = A4;
     const imp = calcularImpuestos(totalConImpuestos);
+    console.log('[RIDE A4] porTarifa:', JSON.stringify(imp.porTarifa));
+    console.log('[RIDE A4] resumen:', JSON.stringify(resumen));
 
     const drawRow = (label, val, y, opts = {}) => {
         const { bold = false, highlight = false } = opts;
