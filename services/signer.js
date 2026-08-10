@@ -69,8 +69,7 @@ function signInvoiceXmlCustom(xml, p12) {
     sig.signatureAlgorithm = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
     sig.canonicalizationAlgorithm = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
 
-    // ✅ CORRECCIÓN: Argumentos posicionales separados por coma (Sin llaves {})
-    // Referencia 1: La Factura
+    // ✅ Argumentos posicionales para Referencia 1: El Comprobante
     sig.addReference(
         "//*[@*[local-name()='id']='comprobante']",
         ["http://www.w3.org/2000/09/xmldsig#enveloped-signature", "http://www.w3.org/TR/2001/REC-xml-c14n-20010315"],
@@ -86,7 +85,7 @@ function signInvoiceXmlCustom(xml, p12) {
         `#${signedPropsId}`
     );
 
-    // 🔥 EL TRUCO MAGISTRAL PARA FORZAR EL ATRIBUTO "TYPE" 🔥
+    // Forzar el atributo "Type"
     const originalCreateReferences = sig.createReferences.bind(sig);
     sig.createReferences = function (params) {
         let references = originalCreateReferences(params);
@@ -125,7 +124,11 @@ function signInvoiceXmlCustom(xml, p12) {
         `${finalObject}</${prefix}Signature>`
     );
 
-    return `<?xml version="1.0" encoding="UTF-8"?>\n${xmlSinHeader.replace('</factura>', `${signatureBlock}</factura>`)}`;
+    // Detectar el tag raíz del comprobante dinámicamente
+    const tagRaizMatch = xmlSinHeader.match(/<(factura|notaCredito|notaDebito|comprobanteRetencion|guiaRemision|liquidacionCompra)[\s>]/);
+    const tagRaiz = tagRaizMatch ? tagRaizMatch[1] : 'factura';
+
+    return `<?xml version="1.0" encoding="UTF-8"?>\n${xmlSinHeader.replace(`</${tagRaiz}>`, `${signatureBlock}</${tagRaiz}>`)}`;
 }
 
 function validarP12(p12Buffer, password, rucEmisor) {
