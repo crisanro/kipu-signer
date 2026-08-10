@@ -101,8 +101,9 @@ function calcularImpuestos(totalImpuestos) {
     };
 
     toArray(totalImpuestos).forEach(imp => {
-        const codigo = String(imp.codigo || '2');
-        const cp     = String(imp.codigoPorcentaje || '0');
+        console.log('[IMP]', JSON.stringify(imp)); // ← agregar esto
+        const codigo  = String(imp.codigo || '2');
+        const cp      = String(imp.codigoPorcentaje || '0');
         const tarifa = String(imp.tarifa || '0');
         const base   = parseFloat(imp.baseImponible || 0);
         const valor  = parseFloat(imp.valor || 0);
