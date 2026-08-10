@@ -88,6 +88,18 @@ function detectarTipo(xmlObj) {
 // ── Calcular subtotales de impuestos ───────────────────────────────────────────
 // Recibe el array de totalImpuesto y retorna un objeto con subtotales por tarifa.
 // Maneja múltiples tarifas: 0%, 5%, 8%, 15%, ICE, IRBPNR, etc.
+// Tabla de codigoPorcentaje → tarifa real
+const CP_A_TARIFA = {
+    "0":  "0",    // 0%
+    "2":  "12",   // 12% (antes de la reforma)
+    "3":  "14",   // 14%
+    "4":  "15",   // 15% ← el tuyo
+    "5":  "5",    // 5%
+    "6":  "0",    // No objeto IVA
+    "7":  "0",    // Exento
+    "10": "0",    // 0%
+};
+
 function calcularImpuestos(totalImpuestos) {
     const result = {
         porTarifa:   {},
@@ -96,17 +108,20 @@ function calcularImpuestos(totalImpuestos) {
         totalIVA:    0,
         totalICE:    0,
         totalIRBPNR: 0,
-        noObjetoIVA: 0,  // ← nuevo
-        exentoIVA:   0,  // ← nuevo
+        noObjetoIVA: 0,
+        exentoIVA:   0,
     };
 
     toArray(totalImpuestos).forEach(imp => {
-        console.log('[IMP]', JSON.stringify(imp)); // ← agregar esto
-        const codigo  = String(imp.codigo || '2');
-        const cp      = String(imp.codigoPorcentaje || '0');
-        const tarifa = String(imp.tarifa || '0');
+        const codigo = String(imp.codigo || '2');
+        const cp     = String(imp.codigoPorcentaje || '0');
         const base   = parseFloat(imp.baseImponible || 0);
         const valor  = parseFloat(imp.valor || 0);
+
+        // ← Usar tarifa del XML si existe, sino derivar del codigoPorcentaje
+        const tarifa = imp.tarifa !== undefined && imp.tarifa !== null && imp.tarifa !== ''
+            ? String(imp.tarifa)
+            : (CP_A_TARIFA[cp] ?? '0');
 
         if (codigo === '2') {
             if (!result.porTarifa[tarifa]) {
@@ -115,7 +130,6 @@ function calcularImpuestos(totalImpuestos) {
             result.porTarifa[tarifa].base  += base;
             result.porTarifa[tarifa].valor += valor;
 
-            // cp 6 = No objeto IVA, cp 7 = Exento IVA
             if (cp === '6') {
                 result.noObjetoIVA += base;
             } else if (cp === '7') {
