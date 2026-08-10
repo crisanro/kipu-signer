@@ -8,7 +8,7 @@
 
 const PDFDocument = require('pdfkit');
 const { PassThrough } = require('stream');
-const { toArray } = require('../helpers');
+const { toArray, calcularImpuestos } = require('../helpers');
 
 // ── Render principal ───────────────────────────────────────────────────────────
 // formato: instancia del layout (a4, t80, t58)
@@ -71,15 +71,17 @@ async function renderFactura(comprobante, emisor, estadoFactura, fechaAuth, form
     const yPie = _yPie(formato, y);
 
     // Resumen de totales para el bloque de totales
+    const impCalc = calcularImpuestos(impuestos);
+
     const resumen = {
-        totalSinImpuestos:       infoFac.totalSinImpuestos,
-        totalDescuento:          infoFac.totalDescuento,
-        importeTotal:            infoFac.importeTotal,
-        propina:                 infoFac.propina,
-        noObjetoIVA:             0,
-        exentoIVA:               0,
+        totalSinImpuestos:       parseFloat(infoFac.totalSinImpuestos || 0),
+        totalDescuento:          parseFloat(infoFac.totalDescuento    || 0),
+        importeTotal:            parseFloat(infoFac.importeTotal      || 0),
+        propina:                 parseFloat(infoFac.propina           || 0),
+        noObjetoIVA:             impCalc.noObjetoIVA || 0,
+        exentoIVA:               impCalc.exentoIVA   || 0,
         importeTotalSinSubsidio: infoFac.importeTotalSinSubsidio || null,
-        ahorroSubsidio:          infoFac.ahorroSubsidio          || 0,
+        ahorroSubsidio:          parseFloat(infoFac.ahorroSubsidio    || 0),
     };
 
     // Info adicional (columna izquierda en A4, arriba en térmico)

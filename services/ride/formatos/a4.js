@@ -366,10 +366,10 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
     const imp = calcularImpuestos(totalConImpuestos);
 
     const drawRow = (label, val, y, opts = {}) => {
-        const { bold = false, highlight = false, color = null } = opts;
+        const { bold = false, highlight = false } = opts;
         const bgColor = highlight ? colorGrisOscuro : 'white';
         doc.rect(rightFtrX, y, rightFtrW, rowH).fillAndStroke(bgColor, '#cccccc');
-        doc.fillColor(color || 'black');
+        doc.fillColor('black');
         const labelW = rightFtrW - 62;
         doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(A4.fontNormal)
             .text(label, rightFtrX + 4, y + 4, { width: labelW });
@@ -377,11 +377,18 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
         doc.fillColor('black');
     };
 
+    // ← Solo mostrar si valor > 0
+    const drawRowSiTiene = (label, val, y, opts = {}) => {
+        if (!val || parseFloat(val) === 0) return y;
+        drawRow(label, val, y, opts);
+        return y + rowH;
+    };
+
     let ty = currentY;
 
-    // Subtotales por tarifa de IVA — dinámicos según lo que venga en el XML
+    // Subtotales por tarifa IVA
     Object.entries(imp.porTarifa)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a)) // mayor tarifa primero
+        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
         .forEach(([tarifa, datos]) => {
             if (parseFloat(tarifa) > 0) {
                 drawRow(`SUBTOTAL ${tarifa}%`, datos.base, ty);
@@ -391,13 +398,18 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
             ty += rowH;
         });
 
-    drawRow('SUBTOTAL NO OBJETO IVA', resumen.noObjetoIVA || 0, ty); ty += rowH;
-    drawRow('SUBTOTAL EXENTO IVA',    resumen.exentoIVA   || 0, ty); ty += rowH;
+    // Solo mostrar si tienen valor
+    ty = drawRowSiTiene('SUBTOTAL NO OBJETO IVA', imp.noObjetoIVA,              ty);
+    ty = drawRowSiTiene('SUBTOTAL EXENTO IVA',    imp.exentoIVA,                ty);
+    
+    // Siempre mostrar
     drawRow('SUBTOTAL SIN IMPUESTOS', resumen.totalSinImpuestos || 0, ty); ty += rowH;
-    drawRow('DESCUENTO',              resumen.totalDescuento    || 0, ty); ty += rowH;
-    drawRow('ICE',                    imp.totalICE              || 0, ty); ty += rowH;
+    
+    // Solo mostrar si tienen valor
+    ty = drawRowSiTiene('DESCUENTO', resumen.totalDescuento || 0, ty);
+    ty = drawRowSiTiene('ICE',       imp.totalICE            || 0, ty);
 
-    // IVA por tarifa — solo tarifas con valor > 0
+    // IVA por tarifa
     Object.entries(imp.porTarifa)
         .filter(([tarifa, datos]) => parseFloat(tarifa) > 0 && datos.valor > 0)
         .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
@@ -405,19 +417,17 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
             drawRow(`IVA ${tarifa}%`, datos.valor, ty); ty += rowH;
         });
 
-    drawRow('IRBPNR',  imp.totalIRBPNR    || 0, ty); ty += rowH;
-    drawRow('PROPINA', resumen.propina     || 0, ty); ty += rowH;
+    ty = drawRowSiTiene('IRBPNR',  imp.totalIRBPNR || 0, ty);
+    ty = drawRowSiTiene('PROPINA', resumen.propina  || 0, ty);
 
-    // Total final destacado
+    // Total siempre destacado
     drawRow(labelTotal, resumen.importeTotal || 0, ty, { bold: true, highlight: true });
     ty += rowH;
 
-    // Valor total sin subsidio (si aplica)
     if (resumen.importeTotalSinSubsidio) {
         drawRow('VALOR TOTAL SIN SUBSIDIO', resumen.importeTotalSinSubsidio, ty, { bold: true, highlight: true });
         ty += rowH;
-        drawRow('AHORRO POR SUBSIDIO', resumen.ahorroSubsidio || 0, ty);
-        ty += rowH;
+        ty = drawRowSiTiene('AHORRO POR SUBSIDIO', resumen.ahorroSubsidio || 0, ty);
     }
 
     return ty;
@@ -428,32 +438,47 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
 // Filtra el campo "Proveedor" que es interno de Kipu — no se muestra al cliente.
 // Retorna el Y donde termina el bloque.
 function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
-    const { margin, leftFooterW } = A4;
-
-    const campos = toArray(camposAdicionales)
-        .map(parsearCampoAdicional)
-        .filter(c => c.nombre &&
-            c.nombre.toUpperCase() !== 'PROVEEDOR' &&
-            c.nombre !== 'PROVEEDOR_SISTEMA_INFORMATICO'
-        );
+    const { margin, leftFooterW, pageWidth } = A4;
+    
+    // Separar proveedor del resto
+    const todos    = toArray(camposAdicionales).map(parsearCampoAdicional);
+    const campos   = todos.filter(c => 
+        c.nombre && 
+        c.nombre.toUpperCase() !== 'PROVEEDOR_SISTEMA_INFORMATICO'
+    );
+    const proveedor = todos.find(c => 
+        c.nombre?.toUpperCase() === 'PROVEEDOR_SISTEMA_INFORMATICO'
+    );
 
     doc.fontSize(A4.fontMedium).font('Helvetica-Bold')
         .text('Información Adicional', margin, currentY - 13);
 
-    if (campos.length === 0) return currentY;
+    if (campos.length > 0) {
+        const boxH = campos.length * A4.rowH + 6;
+        doc.rect(margin, currentY, leftFooterW, boxH).stroke();
+        campos.forEach(campo => {
+            doc.fontSize(A4.fontNormal).font('Helvetica-Bold')
+                .text(String(campo.nombre), margin + 5, currentY + 4, { width: 88 });
+            doc.font('Helvetica')
+                .text(String(campo.valor), margin + 98, currentY + 4, { width: leftFooterW - 103 });
+            currentY += A4.rowH;
+        });
+        currentY += 6;
+    }
 
-    const boxH = campos.length * A4.rowH + 6;
-    doc.rect(margin, currentY, leftFooterW, boxH).stroke();
+    // Proveedor al pie — separado y en gris
+    if (proveedor) {
+        doc.fontSize(6).font('Helvetica').fillColor('#888888')
+            .text(
+                `Proveedor Sistema Facturación Electrónica: ${proveedor.valor}`,
+                margin, currentY + 4,
+                { width: pageWidth, align: 'center' }
+            );
+        doc.fillColor('black');
+        currentY += 12;
+    }
 
-    campos.forEach(campo => {
-        doc.fontSize(A4.fontNormal).font('Helvetica-Bold')
-            .text(String(campo.nombre), margin + 5, currentY + 4, { width: 88 });
-        doc.font('Helvetica')
-            .text(String(campo.valor), margin + 98, currentY + 4, { width: leftFooterW - 103 });
-        currentY += A4.rowH;
-    });
-
-    return currentY + 6;
+    return currentY;
 }
 
 // ── FORMAS DE PAGO ─────────────────────────────────────────────────────────────

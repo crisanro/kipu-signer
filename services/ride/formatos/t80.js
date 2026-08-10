@@ -285,30 +285,41 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
 
 // ── INFO ADICIONAL ─────────────────────────────────────────────────────────────
 function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
-    const w      = T80.pageWidth - T80.margin * 2;
-    const campos = toArray(camposAdicionales)
-        .map(parsearCampoAdicional)
-        .filter(c => c.nombre &&
-            c.nombre.toUpperCase() !== 'PROVEEDOR' &&
-            c.nombre !== 'PROVEEDOR_SISTEMA_INFORMATICO'
-        );
-
-    if (campos.length === 0) return currentY;
+    const w    = T80.pageWidth - T80.margin * 2;
+    const todos = toArray(camposAdicionales).map(parsearCampoAdicional);
+    
+    const campos = todos.filter(c =>
+        c.nombre &&
+        c.nombre.toUpperCase() !== 'PROVEEDOR_SISTEMA_INFORMATICO'
+    );
+    const proveedor = todos.find(c =>
+        c.nombre?.toUpperCase() === 'PROVEEDOR_SISTEMA_INFORMATICO'
+    );
 
     let y = currentY;
-    sep(doc, y); y += T80.rowH;
 
-    doc.fontSize(T80.fontNormal).font('Helvetica-Bold')
-        .text('Información Adicional', T80.margin, y, { width: w }); y += T80.rowH;
+    if (campos.length > 0) {
+        sep(doc, y); y += T80.rowH;
+        doc.fontSize(T80.fontNormal).font('Helvetica-Bold')
+            .text('Información Adicional', T80.margin, y, { width: w }); y += T80.rowH;
+        campos.forEach(campo => {
+            const lw = 70;
+            doc.fontSize(T80.fontSmall).font('Helvetica-Bold')
+                .text(String(campo.nombre), T80.margin, y, { width: lw });
+            doc.font('Helvetica')
+                .text(String(campo.valor), T80.margin + lw + 3, y, { width: w - lw - 3 });
+            y += T80.rowH - 1;
+        });
+    }
 
-    campos.forEach(campo => {
-        const lw = 70;
-        doc.fontSize(T80.fontSmall).font('Helvetica-Bold')
-            .text(String(campo.nombre), T80.margin, y, { width: lw });
-        doc.font('Helvetica')
-            .text(String(campo.valor), T80.margin + lw + 3, y, { width: w - lw - 3 });
-        y += T80.rowH - 1;
-    });
+    // Proveedor al pie
+    if (proveedor) {
+        sep(doc, y); y += T80.rowH - 2;
+        doc.fontSize(T80.fontSmall).font('Helvetica').fillColor('#888888')
+            .text(`Sist. Fact.: ${proveedor.valor}`, T80.margin, y, { width: w, align: 'center' });
+        doc.fillColor('black');
+        y += T80.rowH;
+    }
 
     return y;
 }

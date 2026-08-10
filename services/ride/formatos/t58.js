@@ -244,23 +244,34 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
 // ── INFO ADICIONAL ─────────────────────────────────────────────────────────────
 function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
     const w      = T58.pageWidth - T58.margin * 2;
-    const campos = toArray(camposAdicionales)
-        .map(parsearCampoAdicional)
-        .filter(c => c.nombre &&
-            c.nombre.toUpperCase() !== 'PROVEEDOR' &&
-            c.nombre !== 'PROVEEDOR_SISTEMA_INFORMATICO'
-        );
-
-    if (campos.length === 0) return currentY;
+    const todos  = toArray(camposAdicionales).map(parsearCampoAdicional);
+    const campos = todos.filter(c => 
+        c.nombre &&
+        c.nombre.toUpperCase() !== 'PROVEEDOR_SISTEMA_INFORMATICO'
+    );
+    const proveedor = todos.find(c => 
+        c.nombre?.toUpperCase() === 'PROVEEDOR_SISTEMA_INFORMATICO'
+    );
 
     let y = currentY;
-    sep(doc, y); y += T58.rowH - 2;
 
-    campos.forEach(campo => {
-        doc.fontSize(T58.fontTiny).font('Helvetica')
-            .text(`${campo.nombre}: ${campo.valor}`, T58.margin, y, { width: w });
+    if (campos.length > 0) {
+        sep(doc, y); y += T58.rowH - 2;
+        campos.forEach(campo => {
+            doc.fontSize(T58.fontTiny).font('Helvetica')
+                .text(`${campo.nombre}: ${campo.valor}`, T58.margin, y, { width: w });
+            y += T58.rowH - 2;
+        });
+    }
+
+    // Proveedor al pie
+    if (proveedor) {
+        sep(doc, y); y += T58.rowH - 2;
+        doc.fontSize(T58.fontTiny).font('Helvetica').fillColor('#999999')
+            .text(`Sist. Fact.: ${proveedor.valor}`, T58.margin, y, { width: w, align: 'center' });
+        doc.fillColor('black');
         y += T58.rowH - 2;
-    });
+    }
 
     return y;
 }

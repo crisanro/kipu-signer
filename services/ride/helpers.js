@@ -90,30 +90,36 @@ function detectarTipo(xmlObj) {
 // Maneja múltiples tarifas: 0%, 5%, 8%, 15%, ICE, IRBPNR, etc.
 function calcularImpuestos(totalImpuestos) {
     const result = {
-        porTarifa: {},   // { "15": { base: 80.59, valor: 12.09 }, "0": { base: 146.63, valor: 0 } }
-        base0:     0,    // suma de bases con IVA 0%
-        baseIVA:   0,    // suma de bases con IVA > 0%
-        totalIVA:  0,    // suma de valores de IVA
-        totalICE:  0,
+        porTarifa:   {},
+        base0:       0,
+        baseIVA:     0,
+        totalIVA:    0,
+        totalICE:    0,
         totalIRBPNR: 0,
+        noObjetoIVA: 0,  // ← nuevo
+        exentoIVA:   0,  // ← nuevo
     };
 
     toArray(totalImpuestos).forEach(imp => {
-        const codigo  = String(imp.codigo || '2');
-        const cp      = String(imp.codigoPorcentaje || '0');
-        const tarifa  = String(imp.tarifa || '0');
-        const base    = parseFloat(imp.baseImponible || 0);
-        const valor   = parseFloat(imp.valor || 0);
+        const codigo = String(imp.codigo || '2');
+        const cp     = String(imp.codigoPorcentaje || '0');
+        const tarifa = String(imp.tarifa || '0');
+        const base   = parseFloat(imp.baseImponible || 0);
+        const valor  = parseFloat(imp.valor || 0);
 
         if (codigo === '2') {
-            // IVA
             if (!result.porTarifa[tarifa]) {
                 result.porTarifa[tarifa] = { base: 0, valor: 0, codigoPorcentaje: cp };
             }
             result.porTarifa[tarifa].base  += base;
             result.porTarifa[tarifa].valor += valor;
 
-            if (cp === '0' || tarifa === '0') {
+            // cp 6 = No objeto IVA, cp 7 = Exento IVA
+            if (cp === '6') {
+                result.noObjetoIVA += base;
+            } else if (cp === '7') {
+                result.exentoIVA += base;
+            } else if (cp === '0' || tarifa === '0') {
                 result.base0 += base;
             } else {
                 result.baseIVA  += base;
