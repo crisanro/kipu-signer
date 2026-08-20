@@ -25,17 +25,18 @@ const FORMATOS = {
     't58': formatoT58,
 };
 
-// ── Comprobantes disponibles ───────────────────────────────────────────────────
-const { renderFactura }      = require('./comprobantes/factura');
-const { renderNotaCredito }  = require('./comprobantes/notaCredito');
+const { renderFactura }           = require('./comprobantes/factura');
+const { renderNotaCredito }       = require('./comprobantes/notaCredito');
+const { renderNotaDebito }        = require('./comprobantes/notaDebito');
+const { renderRetencion }         = require('./comprobantes/retencion');
+const { renderLiquidacionCompra } = require('./comprobantes/liquidacionCompra');
 
-// Mapa codDoc → función render
 const RENDERS = {
     '01': renderFactura,
+    '03': renderLiquidacionCompra,
     '04': renderNotaCredito,
-    // '05': renderNotaDebito,    ← agregar cuando esté listo
-    // '07': renderRetencion,     ← agregar cuando esté listo
-    // '03': renderLiquidacion,   ← agregar cuando esté listo
+    '05': renderNotaDebito,
+    '07': renderRetencion,
 };
 
 // ── Parser XML ─────────────────────────────────────────────────────────────────

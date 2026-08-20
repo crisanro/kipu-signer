@@ -1,3 +1,4 @@
+//index.js
 const express = require('express');
 const { create } = require('xmlbuilder2');
 const forge = require('node-forge');
@@ -13,64 +14,54 @@ app.use(express.json({ limit: '15mb' }));
 // ─── ENDPOINT PRINCIPAL: FIRMA DE COMPROBANTES ──────────────────────────────
 
 app.post('/api/firmar', async (req, res) => {
-    let xmlString; // La definimos fuera para que el catch pueda acceder a ella en caso de error
+    let xmlString;
     try {
         const { xmlObj, emisor, p12Base64, formato = 'a4' } = req.body;
-
         if (!xmlObj || !emisor || !p12Base64) {
             return res.status(400).json({ ok: false, error: "Faltan parámetros requeridos" });
         }
 
         // 1. NORMALIZACIÓN DEL OBJETO XML
-        // Detecta el tipo de comprobante y asegura que el ID sea 'comprobante' para XPath
-        const tiposDoc = ["factura", "notaCredito", "notaDebito", "comprobanteRetencion"];
+        const tiposDoc = ["factura", "liquidacionCompra", "notaCredito", "notaDebito", "comprobanteRetencion"];
         const tipoDoc  = tiposDoc.find(t => xmlObj[t]);
+if (tipoDoc) {
+    delete xmlObj[tipoDoc]["@id"];
+    delete xmlObj[tipoDoc]["@Id"];
+    delete xmlObj[tipoDoc]["id"];
+    delete xmlObj[tipoDoc]["Id"];
+    xmlObj[tipoDoc]["@id"] = "comprobante";
+    if (!xmlObj[tipoDoc]["@version"]) {
+        xmlObj[tipoDoc]["@version"] = "1.1.0";
+    }
+    console.log(`[Firmar] tipoDoc=${tipoDoc} version=${xmlObj[tipoDoc]["@version"]}`);
+}
 
-        if (tipoDoc) {
-            delete xmlObj[tipoDoc]["@id"];
-            delete xmlObj[tipoDoc]["@Id"];
-            delete xmlObj[tipoDoc]["id"];
-            delete xmlObj[tipoDoc]["Id"];
-            
-            xmlObj[tipoDoc]["@id"]      = "comprobante";
-            xmlObj[tipoDoc]["@version"] = "1.1.0";
-        }
-
-        // Construcción del String XML
+        // 2. CONSTRUCCIÓN DEL STRING XML
         xmlString = create(xmlObj).end({ prettyPrint: false });
 
-        // 2. PROCESAMIENTO DE FIRMA P12
-        const password = decrypt(emisor.p12_pass);
+        // 3. PROCESAMIENTO DE FIRMA P12
+        const password  = decrypt(emisor.p12_pass);
         const p12Buffer = Buffer.from(p12Base64, 'base64');
-        const p12Asn1 = forge.asn1.fromDer(p12Buffer.toString('binary'));
-        const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
+        const p12Asn1   = forge.asn1.fromDer(p12Buffer.toString('binary'));
+        const p12       = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
 
-        // 3. FIRMA DIGITAL (XAdES-BES)
+        // 4. FIRMA DIGITAL (XAdES-BES)
         const xmlFirmado = signInvoiceXmlCustom(xmlString, p12);
 
-        // 4. GENERACIÓN DE RIDE (PDF)
-        const pdfStream = await generarPDFStream(
-            xmlFirmado,
-            emisor,
-            'FIRMADO',
-            null,
-            formato
-        );
+        // 5. GENERACIÓN DE RIDE (PDF)
+        const pdfStream = await generarPDFStream(xmlFirmado, emisor, 'FIRMADO', null, formato);
         const pdfBuffer = await streamToBuffer(pdfStream);
 
-        // 5. RESPUESTA EXITOSA
         res.json({
-            ok: true,
+            ok:        true,
             xmlFirmado: xmlFirmado,
-            pdfBase64: pdfBuffer.toString('base64')
+            pdfBase64:  pdfBuffer.toString('base64')
         });
-
     } catch (error) {
         console.error("[Microservicio Error]:", error.message);
-        res.status(500).json({ 
-            ok: false, 
-            error: error.message,
-            // Enviamos el XML que falló para debug
+        res.status(500).json({
+            ok:       false,
+            error:    error.message,
             debugXml: xmlString ? xmlString.substring(0, 500) : "XML no generado"
         });
     }
