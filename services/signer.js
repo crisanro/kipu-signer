@@ -138,8 +138,22 @@ function validarP12(p12Buffer, password, rucEmisor) {
         const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
         const { cert } = _seleccionarCertDeFirma(p12);
 
+        // ── DEBUG TEMPORAL ──────────────────────────────
+        //console.log("=== DEBUG CERT ===");
+        //console.log("Subject attrs:", JSON.stringify(cert.subject.attributes, null, 2));
+        //console.log("Extensions:", JSON.stringify(cert.extensions.map(e => ({
+        //    id: e.id,
+        //    name: e.name,
+        //    value: e.value?.toString('hex') || e.value
+        //})), null, 2));
+        // ────────────────────────────────────────────────
+
         let rucDetectado = '';
-        const OIDS_RUC = ['1.3.6.1.4.1.37947.3.11', '1.3.6.1.4.1.37746.3.11'];
+        const OIDS_RUC = [
+            '1.3.6.1.4.1.37947.3.11',  // Security Data
+            '1.3.6.1.4.1.37746.3.11',  // BCE / ANF
+            '1.3.6.1.4.1.59382.3.11',  // Lazzate ← este faltaba
+        ];
         for (const oid of OIDS_RUC) {
             const ext = cert.getExtension({ id: oid });
             if (ext) {
