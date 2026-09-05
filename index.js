@@ -33,7 +33,7 @@ if (tipoDoc) {
     if (!xmlObj[tipoDoc]["@version"]) {
         xmlObj[tipoDoc]["@version"] = "1.1.0";
     }
-    console.log(`[Firmar] tipoDoc=${tipoDoc} version=${xmlObj[tipoDoc]["@version"]}`);
+    //console.log(`[Firmar] tipoDoc=${tipoDoc} version=${xmlObj[tipoDoc]["@version"]}`);
 }
 
         // 2. CONSTRUCCIÓN DEL STRING XML
