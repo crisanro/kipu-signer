@@ -357,12 +357,10 @@ function dibujarItems(doc, detalles, currentY) {
 
 // ── BLOQUE DE TOTALES ──────────────────────────────────────────────────────────
 // Dibuja el bloque de totales en la columna derecha del pie.
-// totalConImpuestos: array de totalImpuesto del XML
-// resumenExtra: array de { label, valor } para filas adicionales (propina, etc.)
-// labelTotal: texto del total final (ej: "VALOR TOTAL" o "VALOR DE MODIFICACIÓN")
-// highlightTotal: si true, fondo gris oscuro en la fila del total
+// Siempre muestra todas las filas del desglose, incluso cuando el valor es $0.00.
+// Esto es requerido por normativa SRI.
 function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
-    const { rightFtrX, rightFtrW, rowH, colorGrisMedio, colorGrisOscuro } = A4;
+    const { rightFtrX, rightFtrW, rowH, colorGrisOscuro } = A4;
     const imp = calcularImpuestos(totalConImpuestos);
 
     const drawRow = (label, val, y, opts = {}) => {
@@ -377,48 +375,30 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
         doc.fillColor('black');
     };
 
-    // ← Solo mostrar si valor > 0
-    const drawRowSiTiene = (label, val, y, opts = {}) => {
-        if (!val || parseFloat(val) === 0) return y;
-        drawRow(label, val, y, opts);
-        return y + rowH;
-    };
-
     let ty = currentY;
 
-    // Subtotales por tarifa IVA
-    Object.entries(imp.porTarifa)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-        .forEach(([tarifa, datos]) => {
-            if (parseFloat(tarifa) > 0) {
-                drawRow(`SUBTOTAL ${tarifa}%`, datos.base, ty);
-            } else {
-                drawRow('SUBTOTAL IVA 0%', datos.base, ty);
-            }
-            ty += rowH;
-        });
+    // Subtotales por tarifa — siempre mostrar 15%, 5%, 0%
+    const base15 = imp.porTarifa['15']?.base || 0;
+    const base5  = imp.porTarifa['5']?.base  || 0;
+    const base0  = imp.porTarifa['0']?.base  || 0;
 
-    // Solo mostrar si tienen valor
-    ty = drawRowSiTiene('SUBTOTAL NO OBJETO IVA', imp.noObjetoIVA,              ty);
-    ty = drawRowSiTiene('SUBTOTAL EXENTO IVA',    imp.exentoIVA,                ty);
-    
-    // Siempre mostrar
-    drawRow('SUBTOTAL SIN IMPUESTOS', resumen.totalSinImpuestos || 0, ty); ty += rowH;
-    
-    // Solo mostrar si tienen valor
-    ty = drawRowSiTiene('DESCUENTO', resumen.totalDescuento || 0, ty);
-    ty = drawRowSiTiene('ICE',       imp.totalICE            || 0, ty);
+    drawRow('SUBTOTAL 15%',           base15,                          ty); ty += rowH;
+    drawRow('SUBTOTAL 5%',            base5,                           ty); ty += rowH;
+    drawRow('SUBTOTAL IVA 0%',        base0,                           ty); ty += rowH;
+    drawRow('SUBTOTAL NO OBJETO IVA', imp.noObjetoIVA || 0,            ty); ty += rowH;
+    drawRow('SUBTOTAL EXENTO IVA',    imp.exentoIVA   || 0,            ty); ty += rowH;
+    drawRow('SUBTOTAL SIN IMPUESTOS', resumen.totalSinImpuestos || 0,  ty); ty += rowH;
+    drawRow('DESCUENTO',              resumen.totalDescuento    || 0,  ty); ty += rowH;
+    drawRow('ICE',                    imp.totalICE              || 0,  ty); ty += rowH;
 
-    // IVA por tarifa
-    Object.entries(imp.porTarifa)
-        .filter(([tarifa, datos]) => parseFloat(tarifa) > 0 && datos.valor > 0)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-        .forEach(([tarifa, datos]) => {
-            drawRow(`IVA ${tarifa}%`, datos.valor, ty); ty += rowH;
-        });
+    // IVA por tarifa — siempre mostrar 15% y 5%
+    const iva15 = imp.porTarifa['15']?.valor || 0;
+    const iva5  = imp.porTarifa['5']?.valor  || 0;
 
-    ty = drawRowSiTiene('IRBPNR',  imp.totalIRBPNR || 0, ty);
-    ty = drawRowSiTiene('PROPINA', resumen.propina  || 0, ty);
+    drawRow('IVA 15%',                iva15,                           ty); ty += rowH;
+    drawRow('IVA 5%',                 iva5,                            ty); ty += rowH;
+    drawRow('IRBPNR',                 imp.totalIRBPNR || 0,            ty); ty += rowH;
+    drawRow('PROPINA',                resumen.propina  || 0,           ty); ty += rowH;
 
     // Total siempre destacado
     drawRow(labelTotal, resumen.importeTotal || 0, ty, { bold: true, highlight: true });
@@ -427,7 +407,8 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
     if (resumen.importeTotalSinSubsidio) {
         drawRow('VALOR TOTAL SIN SUBSIDIO', resumen.importeTotalSinSubsidio, ty, { bold: true, highlight: true });
         ty += rowH;
-        ty = drawRowSiTiene('AHORRO POR SUBSIDIO', resumen.ahorroSubsidio || 0, ty);
+        drawRow('AHORRO POR SUBSIDIO', resumen.ahorroSubsidio || 0, ty);
+        ty += rowH;
     }
 
     return ty;
@@ -435,50 +416,46 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
 
 // ── INFORMACIÓN ADICIONAL ──────────────────────────────────────────────────────
 // Dibuja la tabla de campos adicionales en la columna izquierda del pie.
-// Filtra el campo "Proveedor" que es interno de Kipu — no se muestra al cliente.
+// Todos los campos se renderizan igual — sin filtrar ni tratar diferente ninguno.
+// Si el texto es largo, se ajusta (wrap) dentro del ancho disponible.
 // Retorna el Y donde termina el bloque.
 function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
-    const { margin, leftFooterW, pageWidth } = A4;
-    
-    // Separar proveedor del resto
-    const todos    = toArray(camposAdicionales).map(parsearCampoAdicional);
-    const campos   = todos.filter(c => 
-        c.nombre && 
-        c.nombre.toUpperCase() !== 'PROVEEDOR_SISTEMA_INFORMATICO'
-    );
-    const proveedor = todos.find(c => 
-        c.nombre?.toUpperCase() === 'PROVEEDOR_SISTEMA_INFORMATICO'
-    );
+    const { margin, leftFooterW, rowH } = A4;
 
+    const campos = toArray(camposAdicionales).map(parsearCampoAdicional)
+        .filter(c => c.nombre);
+
+    if (campos.length === 0) return currentY;
+
+    // Header
     doc.fontSize(A4.fontMedium).font('Helvetica-Bold')
         .text('Información Adicional', margin, currentY - 13);
 
-    if (campos.length > 0) {
-        const boxH = campos.length * A4.rowH + 6;
-        doc.rect(margin, currentY, leftFooterW, boxH).stroke();
-        campos.forEach(campo => {
-            doc.fontSize(A4.fontNormal).font('Helvetica-Bold')
-                .text(String(campo.nombre), margin + 5, currentY + 4, { width: 88 });
-            doc.font('Helvetica')
-                .text(String(campo.valor), margin + 98, currentY + 4, { width: leftFooterW - 103 });
-            currentY += A4.rowH;
-        });
-        currentY += 6;
-    }
+    // Calcular altura de cada campo (puede ser multi-línea)
+    const labelW   = 88;
+    const valorW   = leftFooterW - labelW - 15;
+    const medidas  = campos.map(campo => {
+        const hNombre = doc.heightOfString(String(campo.nombre), { width: labelW });
+        const hValor  = doc.heightOfString(String(campo.valor),  { width: valorW });
+        return Math.max(hNombre, hValor, rowH);
+    });
 
-    // Proveedor al pie — separado y en gris
-    if (proveedor) {
-        doc.fontSize(6).font('Helvetica').fillColor('#888888')
-            .text(
-                `Proveedor Sistema Facturación Electrónica: ${proveedor.valor}`,
-                margin, currentY + 4,
-                { width: pageWidth, align: 'center' }
-            );
-        doc.fillColor('black');
-        currentY += 12;
-    }
+    const totalH = medidas.reduce((s, h) => s + h, 0) + 8; // padding top + bottom
 
-    return currentY;
+    // Recuadro
+    doc.rect(margin, currentY, leftFooterW, totalH).stroke();
+
+    // Campos
+    let innerY = currentY + 4;
+    campos.forEach((campo, i) => {
+        doc.fontSize(A4.fontNormal).font('Helvetica-Bold')
+            .text(String(campo.nombre), margin + 5, innerY, { width: labelW });
+        doc.font('Helvetica')
+            .text(String(campo.valor), margin + labelW + 10, innerY, { width: valorW });
+        innerY += medidas[i];
+    });
+
+    return currentY + totalH + 4;
 }
 
 // ── FORMAS DE PAGO ─────────────────────────────────────────────────────────────

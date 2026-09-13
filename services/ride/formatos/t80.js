@@ -236,6 +236,7 @@ function dibujarItems(doc, detalles, currentY) {
 }
 
 // ── TOTALES ────────────────────────────────────────────────────────────────────
+// En 80mm formato compacto pero con desglose completo (normativa SRI)
 function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
     const w   = T80.pageWidth - T80.margin * 2;
     const imp = calcularImpuestos(totalConImpuestos);
@@ -249,29 +250,28 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
         y += T80.rowH;
     };
 
-    // Subtotales dinámicos
-    Object.entries(imp.porTarifa)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-        .forEach(([tarifa, datos]) => {
-            rowTot(parseFloat(tarifa) > 0 ? `Subtotal ${tarifa}%` : 'Subtotal 0%', datos.base);
-        });
+    // Subtotales por tarifa — siempre visibles
+    const base15 = imp.porTarifa['15']?.base || 0;
+    const base5  = imp.porTarifa['5']?.base  || 0;
+    const base0  = imp.porTarifa['0']?.base  || 0;
 
+    rowTot('Subtotal 15%',           base15);
+    rowTot('Subtotal 5%',            base5);
+    rowTot('Subtotal 0%',            base0);
+    rowTot('No objeto IVA',          imp.noObjetoIVA || 0);
+    rowTot('Exento IVA',             imp.exentoIVA   || 0);
     rowTot('Subtotal sin impuestos', resumen.totalSinImpuestos || 0);
-    if (parseFloat(resumen.totalDescuento || 0) > 0) {
-        rowTot('Descuento', resumen.totalDescuento);
-    }
+    rowTot('Descuento',              resumen.totalDescuento    || 0);
+    rowTot('ICE',                    imp.totalICE              || 0);
 
-    // IVA por tarifa
-    Object.entries(imp.porTarifa)
-        .filter(([t, d]) => parseFloat(t) > 0 && d.valor > 0)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-        .forEach(([tarifa, datos]) => {
-            rowTot(`IVA ${tarifa}%`, datos.valor);
-        });
+    // IVA por tarifa — siempre visibles
+    const iva15 = imp.porTarifa['15']?.valor || 0;
+    const iva5  = imp.porTarifa['5']?.valor  || 0;
 
-    if (imp.totalICE > 0)     rowTot('ICE',     imp.totalICE);
-    if (imp.totalIRBPNR > 0)  rowTot('IRBPNR',  imp.totalIRBPNR);
-    if (parseFloat(resumen.propina || 0) > 0) rowTot('Propina', resumen.propina);
+    rowTot('IVA 15%',                iva15);
+    rowTot('IVA 5%',                 iva5);
+    rowTot('IRBPNR',                 imp.totalIRBPNR || 0);
+    rowTot('Propina',                resumen.propina  || 0);
 
     // Total destacado
     sep(doc, y); y += T80.rowH - 2;
@@ -285,44 +285,34 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
 
 // ── INFO ADICIONAL ─────────────────────────────────────────────────────────────
 function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
-    const w    = T80.pageWidth - T80.margin * 2;
-    const todos = toArray(camposAdicionales).map(parsearCampoAdicional);
-    
-    const campos = todos.filter(c =>
-        c.nombre &&
-        c.nombre.toUpperCase() !== 'PROVEEDOR_SISTEMA_INFORMATICO'
-    );
-    const proveedor = todos.find(c =>
-        c.nombre?.toUpperCase() === 'PROVEEDOR_SISTEMA_INFORMATICO'
-    );
-
+    const w      = T80.pageWidth - T80.margin * 2;
+    const campos = toArray(camposAdicionales).map(parsearCampoAdicional)
+        .filter(c => c.nombre);
+ 
+    if (campos.length === 0) return currentY;
+ 
     let y = currentY;
-
-    if (campos.length > 0) {
-        sep(doc, y); y += T80.rowH;
-        doc.fontSize(T80.fontNormal).font('Helvetica-Bold')
-            .text('Información Adicional', T80.margin, y, { width: w }); y += T80.rowH;
-        campos.forEach(campo => {
-            const lw = 70;
-            doc.fontSize(T80.fontSmall).font('Helvetica-Bold')
-                .text(String(campo.nombre), T80.margin, y, { width: lw });
-            doc.font('Helvetica')
-                .text(String(campo.valor), T80.margin + lw + 3, y, { width: w - lw - 3 });
-            y += T80.rowH - 1;
-        });
-    }
-
-    // Proveedor al pie
-    if (proveedor) {
-        sep(doc, y); y += T80.rowH - 2;
-        doc.fontSize(T80.fontSmall).font('Helvetica').fillColor('#888888')
-            .text(`Sist. Fact.: ${proveedor.valor}`, T80.margin, y, { width: w, align: 'center' });
-        doc.fillColor('black');
-        y += T80.rowH;
-    }
-
+    sep(doc, y); y += T80.rowH;
+ 
+    doc.fontSize(T80.fontNormal).font('Helvetica-Bold')
+        .text('Información Adicional', T80.margin, y, { width: w }); y += T80.rowH;
+ 
+    campos.forEach(campo => {
+        const lw = 70;
+        const valorW = w - lw - 3;
+        const valorStr = String(campo.valor);
+        doc.fontSize(T80.fontSmall).font('Helvetica-Bold')
+            .text(String(campo.nombre), T80.margin, y, { width: lw });
+        doc.font('Helvetica')
+            .text(valorStr, T80.margin + lw + 3, y, { width: valorW });
+        const h = doc.heightOfString(valorStr, { width: valorW });
+        y += Math.max(h + T80.lineGap, T80.rowH - 1);
+    });
+ 
     return y;
 }
+ 
+
 
 // ── FORMAS DE PAGO ─────────────────────────────────────────────────────────────
 function dibujarFormasPago(doc, pagosArr, currentY) {

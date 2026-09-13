@@ -238,7 +238,7 @@ async function renderA4(doc, infoTrib, infoFac, detalles, impTotales, pagosArr, 
         currentY += rowH;
     });
 
-    // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
     // SECCIÓN 4: PIE — Info adicional + Formas de pago + Totales
     // ─────────────────────────────────────────────────────────────
     currentY = Math.max(currentY + 15, 540);
@@ -247,21 +247,35 @@ async function renderA4(doc, infoTrib, infoFac, detalles, impTotales, pagosArr, 
     const rightFooterX = margin + leftFooterW + 10;
     const rightFooterW = pageWidth - leftFooterW - 10;
 
-    // Calcular totales
-    let base0 = 0, baseIVA = 0, valorIVA = 0, tarifaIVA = '15';
+    // Calcular totales — desglose por tarifa (0%, 5%, 15%)
+    let base0 = 0, base5 = 0, base15 = 0;
+    let iva5 = 0, iva15 = 0;
+    let baseNoObjeto = 0, baseExento = 0;
+
     impTotales.forEach(imp => {
         const base  = parseFloat(imp.baseImponible || 0);
         const valor = parseFloat(imp.valor || 0);
-        if (String(imp.codigoPorcentaje) === '0') {
+        const codPct = String(imp.codigoPorcentaje || '0');
+        const tarifa = parseFloat(imp.tarifa || 0);
+
+        if (codPct === '6') {
+            baseNoObjeto += base;
+        } else if (codPct === '7') {
+            baseExento += base;
+        } else if (tarifa === 0 || codPct === '0') {
             base0 += base;
+        } else if (tarifa === 5 || codPct === '5') {
+            base5 += base;
+            iva5 += valor;
         } else {
-            baseIVA += base;
-            valorIVA += valor;
-            tarifaIVA = String(imp.tarifa || '15');
+            base15 += base;
+            iva15 += valor;
         }
     });
 
-    // ── Totales (columna derecha) — van primero para alinear con info adicional ──
+    const propina = parseFloat(infoFac.propina || 0);
+
+    // ── Totales (columna derecha) ──
     const drawTotalRow = (label, val, y, bold = false, highlight = false) => {
         if (highlight) {
             doc.rect(rightFooterX, y, rightFooterW, 14).fill('#d0d0d0').stroke();
@@ -280,16 +294,18 @@ async function renderA4(doc, infoTrib, infoFac, detalles, impTotales, pagosArr, 
     };
 
     let ty = currentY;
-    drawTotalRow(`SUBTOTAL ${tarifaIVA}%`,       baseIVA,                                   ty); ty += 14;
-    drawTotalRow('SUBTOTAL IVA 0%',               base0,                                     ty); ty += 14;
-    drawTotalRow('SUBTOTAL NO OBJETO IVA',         0,                                         ty); ty += 14;
-    drawTotalRow('SUBTOTAL EXENTO IVA',            0,                                         ty); ty += 14;
+    drawTotalRow('SUBTOTAL 15%',                   base15,                                    ty); ty += 14;
+    drawTotalRow('SUBTOTAL 5%',                    base5,                                     ty); ty += 14;
+    drawTotalRow('SUBTOTAL IVA 0%',                base0,                                     ty); ty += 14;
+    drawTotalRow('SUBTOTAL NO OBJETO IVA',         baseNoObjeto,                              ty); ty += 14;
+    drawTotalRow('SUBTOTAL EXENTO IVA',            baseExento,                                ty); ty += 14;
     drawTotalRow('SUBTOTAL SIN IMPUESTOS',         parseFloat(infoFac.totalSinImpuestos || 0), ty); ty += 14;
     drawTotalRow('DESCUENTO',                      parseFloat(infoFac.totalDescuento    || 0), ty); ty += 14;
     drawTotalRow('ICE',                            0,                                         ty); ty += 14;
-    drawTotalRow(`IVA ${tarifaIVA}%`,             valorIVA,                                  ty); ty += 14;
+    drawTotalRow('IVA 15%',                        iva15,                                     ty); ty += 14;
+    drawTotalRow('IVA 5%',                         iva5,                                      ty); ty += 14;
     drawTotalRow('IRBPNR',                         0,                                         ty); ty += 14;
-    drawTotalRow('PROPINA',                        0,                                         ty); ty += 14;
+    drawTotalRow('PROPINA',                        propina,                                   ty); ty += 14;
     drawTotalRow('VALOR TOTAL',                    parseFloat(infoFac.importeTotal      || 0), ty, true, true); ty += 14;
     drawTotalRow('VALOR TOTAL SIN SUBSIDIO',       parseFloat(infoFac.importeTotal      || 0), ty, true, true); ty += 14;
     drawTotalRow('AHORRO POR SUBSIDIO:',           0,                                         ty, false, false);

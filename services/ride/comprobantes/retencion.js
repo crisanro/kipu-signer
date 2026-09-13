@@ -169,7 +169,7 @@ function _getPdfOpts(formato) {
 }
 
 function _yPie(formato, yActual) {
-    if (formato.A4) return Math.max(yActual + 15, 540);
+    if (formato.A4) return yActual + 15;
     return yActual + 8;
 }
 

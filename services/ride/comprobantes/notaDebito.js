@@ -8,7 +8,7 @@ async function renderNotaDebito(comprobante, emisor, estadoFactura, fechaAuth, f
     const infoTrib  = comprobante.infoTributaria;
     const infoND    = comprobante.infoNotaDebito;
     const motivos   = toArray(comprobante.motivos?.motivo);
-    const impuestos = toArray(infoND.totalConImpuestos?.totalImpuesto);
+    const impuestos = toArray(infoND.impuestos?.impuesto);
     const infoAdc   = toArray(comprobante.infoAdicional?.campoAdicional);
 
     const tipoDocMod = DOCS_SUSTENTO[infoND.codDocModificado] || infoND.codDocModificado || '-';
@@ -129,7 +129,7 @@ function _getPdfOpts(formato) {
 }
 
 function _yPie(formato, yActual) {
-    if (formato.A4) return Math.max(yActual + 15, 540);
+    if (formato.A4) return yActual + 15;
     return yActual + 8;
 }
 
