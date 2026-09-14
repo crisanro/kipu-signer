@@ -98,6 +98,16 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
         y += T58.rowH - 1;
     }
 
+    // ── Leyendas SRI — Ficha Técnica v2.34 ─────────────────────────────────
+    if (infoTrib.agenteRetencion) {
+        centrado(doc, `Agente de Ret. Res. No: ${infoTrib.agenteRetencion}`, y, { fontSize: T58.fontSmall });
+        y += T58.rowH - 1;
+    }
+    if (infoTrib.contribuyenteRimpe) {
+        centrado(doc, infoTrib.contribuyenteRimpe, y, { fontSize: T58.fontSmall, bold: true });
+        y += T58.rowH - 1;
+    }
+
     sep(doc, y); y += T58.rowH;
 
     // Tipo de comprobante
@@ -159,7 +169,7 @@ function dibujarDatosComprador(doc, datos, extraFilas, currentY) {
     let y   = currentY;
 
     fila(doc, 'Cliente:', datos.razonSocial || '', y, { bold: false, labelW: 38 }); y += T58.rowH;
-    fila(doc, 'ID:',      datos.identificacion || '', y, { labelW: 16 });           y += T58.rowH;
+    fila(doc, 'ID:',      datos.identificacion || '', y, { labelW: 16 });            y += T58.rowH;
     fila(doc, 'Fecha:',   datos.fechaEmision || '', y, { labelW: 30 });             y += T58.rowH;
 
     if (datos.direccion) {

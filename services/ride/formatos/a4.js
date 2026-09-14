@@ -38,7 +38,6 @@ const A4 = {
     // Alturas estándar
     rowH:         14,
     headerH:      18,
-    cabeceraH:    178,
 
     // Fuentes
     fontNormal:   7,
@@ -71,7 +70,7 @@ const A4 = {
 // Derecha:   tipo comprobante + número + clave acceso + QR + código barras
 //
 // Parámetros:
-//   doc              — instancia PDFDocument
+//   doc             — instancia PDFDocument
 //   infoTrib         — objeto infoTributaria del XML
 //   labelTipo        — ej: "F A C T U R A"
 //   datosExtra       — { dirEstablecimiento, obligadoContabilidad, contribuyenteEspecial }
@@ -81,10 +80,18 @@ const A4 = {
 //
 // Retorna el Y donde termina la cabecera.
 async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactura, fechaAuth, emisor) {
-    const { margin, leftColW, rightColX, rightColW, cabeceraH } = A4;
+    const { margin, leftColW, rightColX, rightColW } = A4;
     const startY = 30;
 
-    // ── Columna izquierda ──────────────────────────────────────────────────────
+    // ══ Calcular altura dinámica de la columna izquierda ═══════════════════
+    // Base: logo(60) + razón social(~14) + nombre comercial(~12) + dir matriz(~22)
+    //       + dir estab(~22) + obligado(12) + contrib especial(12) + padding
+    let extraH = 0;
+    if (infoTrib.agenteRetencion)    extraH += 12;
+    if (infoTrib.contribuyenteRimpe) extraH += 12;
+    const cabeceraH = 178 + extraH;
+
+    // ── Columna izquierda ──────────────────────────────────────────────────
     doc.rect(margin, startY, leftColW, cabeceraH).stroke();
 
     // Espacio logo
@@ -136,7 +143,26 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
         .text('Contribuyente Especial Nro:', margin + 5, startY + 160);
     doc.font('Helvetica').text(contribEsp, margin + 137, startY + 160);
 
-    // ── Columna derecha ────────────────────────────────────────────────────────
+    // ── Leyendas SRI — Ficha Técnica v2.34 ─────────────────────────────────
+    let yLeyenda = startY + 172;
+
+    if (infoTrib.agenteRetencion) {
+        doc.font('Helvetica-Bold')
+            .text('Agente de Retención Resolución No:', margin + 5, yLeyenda);
+        doc.font('Helvetica').text(infoTrib.agenteRetencion, margin + 175, yLeyenda);
+        yLeyenda += 12;
+    }
+
+    if (infoTrib.contribuyenteRimpe) {
+        doc.font('Helvetica-Bold').fillColor('#333333')
+            .text(infoTrib.contribuyenteRimpe, margin + 5, yLeyenda, {
+                width: leftColW - 10,
+            });
+        doc.fillColor('black');
+        yLeyenda += 12;
+    }
+
+    // ── Columna derecha ────────────────────────────────────────────────────
     doc.rect(rightColX, startY, rightColW, cabeceraH).stroke();
 
     // RUC
@@ -237,7 +263,7 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
             { width: rightColW - 10, align: 'center' }
         );
 
-    return startY + cabeceraH + 8; // Y donde continúa el contenido
+    return startY + cabeceraH + 8;
 }
 
 // ── BLOQUE DATOS COMPRADOR ─────────────────────────────────────────────────────
@@ -398,7 +424,7 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
     drawRow('IVA 15%',                iva15,                           ty); ty += rowH;
     drawRow('IVA 5%',                 iva5,                            ty); ty += rowH;
     drawRow('IRBPNR',                 imp.totalIRBPNR || 0,            ty); ty += rowH;
-    drawRow('PROPINA',                resumen.propina  || 0,           ty); ty += rowH;
+    drawRow('PROPINA',                resumen.propina  || 0,            ty); ty += rowH;
 
     // Total siempre destacado
     drawRow(labelTotal, resumen.importeTotal || 0, ty, { bold: true, highlight: true });

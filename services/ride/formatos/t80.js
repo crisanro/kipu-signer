@@ -45,7 +45,7 @@ function sep(doc, y) {
 // Fila label + valor en la misma línea
 function fila(doc, label, valor, y, opts = {}) {
     const { bold = false, align = 'right' } = opts;
-    const w     = T80.pageWidth - T80.margin * 2;
+    const w      = T80.pageWidth - T80.margin * 2;
     const labelW = opts.labelW || Math.floor(w * 0.55);
     const valorW = w - labelW;
     doc.fontSize(T80.fontNormal).font(bold ? 'Helvetica-Bold' : 'Helvetica')
@@ -96,6 +96,16 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
     // Contribuyente especial
     if (datosExtra.contribuyenteEspecial) {
         centrado(doc, `Contribuyente Especial: ${datosExtra.contribuyenteEspecial}`, y, { fontSize: T80.fontSmall });
+        y += T80.rowH - 2;
+    }
+
+    // ── Leyendas SRI — Ficha Técnica v2.34 ─────────────────────────────────
+    if (infoTrib.agenteRetencion) {
+        centrado(doc, `Agente de Ret. Res. No: ${infoTrib.agenteRetencion}`, y, { fontSize: T80.fontSmall });
+        y += T80.rowH - 2;
+    }
+    if (infoTrib.contribuyenteRimpe) {
+        centrado(doc, infoTrib.contribuyenteRimpe, y, { fontSize: T80.fontSmall, bold: true });
         y += T80.rowH - 2;
     }
 
@@ -158,7 +168,7 @@ function dibujarDatosComprador(doc, datos, extraFilas, currentY) {
     let y   = currentY;
 
     fila(doc, 'Cliente:', datos.razonSocial || '', y, { bold: false, labelW: 45 }); y += T80.rowH;
-    fila(doc, 'ID:',      datos.identificacion || '', y, { labelW: 20 });           y += T80.rowH;
+    fila(doc, 'ID:',      datos.identificacion || '', y, { labelW: 20 });            y += T80.rowH;
     fila(doc, 'Fecha:',   datos.fechaEmision || '', y, { labelW: 35 });             y += T80.rowH;
 
     if (datos.direccion) {
@@ -288,15 +298,15 @@ function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
     const w      = T80.pageWidth - T80.margin * 2;
     const campos = toArray(camposAdicionales).map(parsearCampoAdicional)
         .filter(c => c.nombre);
- 
+
     if (campos.length === 0) return currentY;
- 
+
     let y = currentY;
     sep(doc, y); y += T80.rowH;
- 
+
     doc.fontSize(T80.fontNormal).font('Helvetica-Bold')
         .text('Información Adicional', T80.margin, y, { width: w }); y += T80.rowH;
- 
+
     campos.forEach(campo => {
         const lw = 70;
         const valorW = w - lw - 3;
@@ -308,11 +318,9 @@ function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
         const h = doc.heightOfString(valorStr, { width: valorW });
         y += Math.max(h + T80.lineGap, T80.rowH - 1);
     });
- 
+
     return y;
 }
- 
-
 
 // ── FORMAS DE PAGO ─────────────────────────────────────────────────────────────
 function dibujarFormasPago(doc, pagosArr, currentY) {
