@@ -1,158 +1,187 @@
 // services/ride/comprobantes/notaCredito.js
-//
-// Render del RIDE de Nota de Crédito Electrónica (codDoc: 04)
-// Compatible con formatos A4, 80mm y 58mm.
-// Diferencias vs Factura según ficha técnica SRI versión 2.26:
-//   - Label: "NOTA DE CRÉDITO"
-//   - Bloque comprador incluye: doc que modifica, fecha sustento, motivo
-//   - No tiene formas de pago
-//   - Total = "VALOR DE MODIFICACIÓN"
-
 'use strict';
 
 const PDFDocument = require('pdfkit');
 const { PassThrough } = require('stream');
 const { toArray, DOCS_SUSTENTO } = require('../helpers');
 
-// ── Render principal ───────────────────────────────────────────────────────────
 async function renderNotaCredito(comprobante, emisor, estadoFactura, fechaAuth, formato) {
-    const {
-        dibujarCabecera,
-        dibujarDatosComprador,
-        dibujarItems,
-        dibujarTotales,
-        dibujarInfoAdicional,
-    } = formato;
-
-    // ── Extraer datos del XML ──────────────────────────────────────────────────
     const infoTrib  = comprobante.infoTributaria;
     const infoNC    = comprobante.infoNotaCredito;
     const detalles  = toArray(comprobante.detalles?.detalle);
     const impuestos = toArray(infoNC.totalConImpuestos?.totalImpuesto);
     const infoAdc   = toArray(comprobante.infoAdicional?.campoAdicional);
 
-    // Tipo del documento que modifica — ej: "FACTURA Nro. 001-001-000000001"
     const tipoDocMod = DOCS_SUSTENTO[infoNC.codDocModificado] || infoNC.codDocModificado || '-';
     const numDocMod  = infoNC.numDocModificado ? `Nro. ${infoNC.numDocModificado}` : '';
 
-    // ── Configurar PDF ─────────────────────────────────────────────────────────
-    const docOpts = _getPdfOpts(formato);
-    const doc     = new PDFDocument(docOpts);
-    const stream  = new PassThrough();
-    doc.pipe(stream);
-
-    // ── 1. Cabecera ────────────────────────────────────────────────────────────
-    let y = await dibujarCabecera(
-        doc,
-        infoTrib,
-        'N O T A   D E   C R É D I T O',
-        {
-            dirEstablecimiento:   infoNC.dirEstablecimiento,
-            obligadoContabilidad: infoNC.obligadoContabilidad,
-            contribuyenteEspecial: infoNC.contribuyenteEspecial,
-        },
-        estadoFactura,
-        fechaAuth,
-        emisor
-    );
-
-    // ── 2. Datos del comprador + referencia al doc original ────────────────────
-    // Filas extra específicas de NC:
-    // - Comprobante que modifica
-    // - Fecha doc sustento
-    // - Motivo
-    const extraFilas = [
-        {
-            label:  'Doc. que Modifica',
-            valor:  `${tipoDocMod} ${numDocMod}`.trim(),
-            labelW: 90,
-        },
-        {
-            label:  'Fecha Doc. Sustento',
-            valor:  infoNC.fechaEmisionDocSustento || '-',
-            labelW: 100,
-        },
-        {
-            label:  'Motivo',
-            valor:  infoNC.motivo || '-',
-            labelW: 42,
-        },
-    ];
-
-    y = dibujarDatosComprador(
-        doc,
-        {
-            razonSocial:    infoNC.razonSocialComprador,
-            identificacion: infoNC.identificacionComprador,
-            fechaEmision:   infoNC.fechaEmision,
-            direccion:      null, // NC no muestra dirección en bloque comprador
-        },
-        extraFilas,
-        y
-    );
-
-    // ── 3. Ítems ───────────────────────────────────────────────────────────────
-    y = dibujarItems(doc, detalles, y);
-
-    // ── 4. Pie ─────────────────────────────────────────────────────────────────
-    const yPie = _yPie(formato, y);
-
     const resumen = {
         totalSinImpuestos: infoNC.totalSinImpuestos,
-        totalDescuento:    0,               // NC no tiene totalDescuento
-        importeTotal:      infoNC.valorModificacion, // ← en NC es valorModificacion
-        propina:           0,               // NC no tiene propina
+        totalDescuento:    0,
+        importeTotal:      infoNC.valorModificacion,
+        propina:           0,
         noObjetoIVA:       0,
         exentoIVA:         0,
     };
 
-    // Info adicional (columna izquierda en A4)
-    // NC no tiene formas de pago — la columna izquierda solo muestra info adicional
-    dibujarInfoAdicional(doc, infoAdc, yPie);
+    const extraFilas = [
+        { label: 'Doc. que Modifica',   valor: `${tipoDocMod} ${numDocMod}`.trim(), labelW: 90  },
+        { label: 'Fecha Doc. Sustento', valor: infoNC.fechaEmisionDocSustento || '-', labelW: 100 },
+        { label: 'Motivo',              valor: infoNC.motivo || '-',                  labelW: 42  },
+    ];
 
-    // Totales (columna derecha en A4)
-    // Label diferente: "VALOR DE MODIFICACIÓN" en vez de "VALOR TOTAL"
-    dibujarTotales(
-        doc,
-        impuestos,
-        resumen,
-        'VALOR DE MODIFICACIÓN',
-        yPie
+    const esTermica = !!(formato.T80 || formato.T58);
+
+    if (esTermica) {
+        return _renderTermica(
+            formato, infoTrib, infoNC, detalles, impuestos, infoAdc,
+            resumen, extraFilas, emisor, estadoFactura, fechaAuth
+        );
+    } else {
+        return _renderA4(
+            formato, infoTrib, infoNC, detalles, impuestos, infoAdc,
+            resumen, extraFilas, emisor, estadoFactura, fechaAuth
+        );
+    }
+}
+
+// =============================================================================
+// RENDER TÉRMICO — doble pasada (medir + renderizar)
+// =============================================================================
+async function _renderTermica(
+    formato, infoTrib, infoNC, detalles, impuestos, infoAdc,
+    resumen, extraFilas, emisor, estadoFactura, fechaAuth
+) {
+    const dims = formato.T80 || formato.T58;
+
+    // Primera pasada: medir
+    const yFinal = await _medirContenidoTermico(
+        formato, dims, infoTrib, infoNC, detalles, impuestos, infoAdc,
+        resumen, extraFilas, estadoFactura, fechaAuth
     );
 
-    // Pie final en térmico
-    if (formato.dibujarPieFinal) {
-        const yFinal = yPie + _altTotales(impuestos, formato);
-        formato.dibujarPieFinal(doc, yFinal);
-    }
+    const alturaDoc = Math.ceil(yFinal) + 20;
+
+    // Segunda pasada: render real
+    const doc    = new PDFDocument({ size: [dims.pageWidth, alturaDoc], margin: 0, autoFirstPage: true });
+    const stream = new PassThrough();
+    doc.pipe(stream);
+
+    await _dibujarContenidoTermico(
+        doc, formato, infoTrib, infoNC, detalles, impuestos, infoAdc,
+        resumen, extraFilas, estadoFactura, fechaAuth
+    );
 
     doc.end();
     return stream;
 }
 
-// ── Helpers privados ───────────────────────────────────────────────────────────
-function _getPdfOpts(formato) {
-    const dims = formato.A4 || formato.T80 || formato.T58;
-    if (!dims) return { size: 'A4', margin: 30 };
-    if (formato.T80 || formato.T58) {
-        return {
-            size:          [dims.pageWidth, 2000],
-            margin:        dims.margin,
-            autoFirstPage: true,
-        };
+async function _medirContenidoTermico(
+    formato, dims, infoTrib, infoNC, detalles, impuestos, infoAdc,
+    resumen, extraFilas, estadoFactura, fechaAuth
+) {
+    const docMed = new PDFDocument({ size: [dims.pageWidth, 9999], margin: 0, autoFirstPage: true });
+    docMed.pipe(require('stream').PassThrough());
+
+    const y = await _dibujarContenidoTermico(
+        docMed, formato, infoTrib, infoNC, detalles, impuestos, infoAdc,
+        resumen, extraFilas, estadoFactura, fechaAuth
+    );
+    docMed.end();
+    return y;
+}
+
+async function _dibujarContenidoTermico(
+    doc, formato, infoTrib, infoNC, detalles, impuestos, infoAdc,
+    resumen, extraFilas, estadoFactura, fechaAuth
+) {
+    // 1. Cabecera
+    let y = await formato.dibujarCabecera(
+        doc, infoTrib, 'N O T A   D E   C R É D I T O',
+        {
+            dirEstablecimiento:    infoNC.dirEstablecimiento,
+            obligadoContabilidad:  infoNC.obligadoContabilidad,
+            contribuyenteEspecial: infoNC.contribuyenteEspecial,
+        },
+        estadoFactura, fechaAuth
+    );
+
+    // 2. Datos comprador
+    y = formato.dibujarDatosComprador(
+        doc,
+        {
+            razonSocial:    infoNC.razonSocialComprador,
+            identificacion: infoNC.identificacionComprador,
+            fechaEmision:   infoNC.fechaEmision,
+            direccion:      null,
+        },
+        extraFilas,
+        y
+    );
+
+    // 3. Ítems
+    y = formato.dibujarItems(doc, detalles, y);
+
+    // 4. Totales
+    y = formato.dibujarTotales(doc, impuestos, resumen, 'VALOR DE MODIFICACIÓN', y);
+
+    // 5. Info adicional
+    y = formato.dibujarInfoAdicional(doc, infoAdc, y);
+
+    // 6. Pie final
+    if (formato.dibujarPieFinal) {
+        y = formato.dibujarPieFinal(doc, y);
     }
-    return { size: 'A4', margin: 30 };
+
+    return y;
 }
 
-function _yPie(formato, yActual) {
-    if (formato.A4) return yActual + 15;
-    return yActual + 8;
-}
+// =============================================================================
+// RENDER A4 — dos columnas en el pie
+// =============================================================================
+async function _renderA4(
+    formato, infoTrib, infoNC, detalles, impuestos, infoAdc,
+    resumen, extraFilas, emisor, estadoFactura, fechaAuth
+) {
+    const doc    = new PDFDocument({ size: 'A4', margin: 30 });
+    const stream = new PassThrough();
+    doc.pipe(stream);
 
-function _altTotales(impuestos, formato) {
-    const rowH  = (formato.T80 || formato.T58)?.rowH || 14;
-    const filas = toArray(impuestos).length + 6;
-    return filas * rowH + 20;
+    // 1. Cabecera
+    let y = await formato.dibujarCabecera(
+        doc, infoTrib, 'N O T A   D E   C R É D I T O',
+        {
+            dirEstablecimiento:    infoNC.dirEstablecimiento,
+            obligadoContabilidad:  infoNC.obligadoContabilidad,
+            contribuyenteEspecial: infoNC.contribuyenteEspecial,
+        },
+        estadoFactura, fechaAuth, emisor
+    );
+
+    // 2. Datos comprador
+    y = formato.dibujarDatosComprador(
+        doc,
+        {
+            razonSocial:    infoNC.razonSocialComprador,
+            identificacion: infoNC.identificacionComprador,
+            fechaEmision:   infoNC.fechaEmision,
+            direccion:      null,
+        },
+        extraFilas,
+        y
+    );
+
+    // 3. Ítems
+    y = formato.dibujarItems(doc, detalles, y);
+
+    // 4. Pie — dos columnas
+    const yPie = y + 15;
+
+    formato.dibujarInfoAdicional(doc, infoAdc, yPie);
+    formato.dibujarTotales(doc, impuestos, resumen, 'VALOR DE MODIFICACIÓN', yPie);
+
+    doc.end();
+    return stream;
 }
 
 module.exports = { renderNotaCredito };
