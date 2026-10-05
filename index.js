@@ -67,21 +67,44 @@ if (tipoDoc) {
     }
 });
 
-// ─── ENDPOINT PARA REGENERAR RIDE (PDF AUTORIZADO) ──────────────────────────
+// ─── ENDPOINT PARA GENERAR RIDE (PDF) ───────────────────────────────────────
+//
+// Soporta dos modos:
+//   - AUTORIZADO (default): RIDE oficial con fecha y número de autorización.
+//   - PROVISIONAL: PDF desde el XML firmado, sin fecha de autorización.
+//     El render del RIDE muestra "PENDIENTE DE AUTORIZACIÓN" en el campo
+//     de autorización porque recibe estadoFactura='FIRMADO' y fechaAuth=null.
+//
+// Parámetros:
+//   xmlAutorizado       — XML del comprobante (firmado o autorizado)
+//   emisor              — { contribuyente_especial, ... }
+//   fechaAutorizacion   — string fecha/hora (null si provisional)
+//   formato             — 'a4' | 't80' | 't58'
+//   provisional         — true si el doc aún no está autorizado (optional, default false)
 
 app.post('/api/pdf', async (req, res) => {
     try {
-        const { xmlAutorizado, emisor, fechaAutorizacion, formato = 'a4' } = req.body;
+        const {
+            xmlAutorizado,
+            emisor,
+            fechaAutorizacion,
+            formato = 'a4',
+            provisional = false,
+        } = req.body;
 
         if (!xmlAutorizado || !emisor) {
             return res.status(400).json({ ok: false, error: "Faltan parámetros (xmlAutorizado, emisor)" });
         }
 
+        // Si es provisional, el estado es FIRMADO y no hay fecha de autorización
+        const estado    = provisional ? 'FIRMADO' : 'AUTORIZADO';
+        const fechaAuth = provisional ? null      : (fechaAutorizacion || null);
+
         const pdfStream = await generarPDFStream(
             xmlAutorizado,
             emisor,
-            'AUTORIZADO',
-            fechaAutorizacion,
+            estado,
+            fechaAuth,
             formato
         );
         const pdfBuffer = await streamToBuffer(pdfStream);
