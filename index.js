@@ -59,11 +59,7 @@ if (tipoDoc) {
         });
     } catch (error) {
         console.error("[Microservicio Error]:", error.message);
-        res.status(500).json({
-            ok:       false,
-            error:    error.message,
-            debugXml: xmlString ? xmlString.substring(0, 500) : "XML no generado"
-        });
+        res.status(500).json({ ok: false, error: error.message });
     }
 });
 

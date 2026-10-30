@@ -13,14 +13,17 @@ WORKDIR /app
 # Copiar archivos de dependencias primero para aprovechar el cache de Docker
 COPY package*.json ./
 
-# Instalar dependencias (solo producción para que sea ligero)
-RUN npm install --production
+# Instalar dependencias (solo producción, versiones exactas del lock)
+RUN npm ci --omit=dev
 
 # Copiar el resto del código del microservicio
 COPY . .
 
 # El puerto que definiste en tu index.js
 EXPOSE 3000
+
+# Correr sin root (usuario "node" que trae la imagen oficial)
+USER node
 
 # Comando para arrancar
 CMD ["node", "index.js"]

@@ -4,12 +4,13 @@ services:
   signer-node:
     build: .
     container_name: kipu_signer_node
-    ports:
-      - "3001:3000"
+    # Sin "ports": el servicio no tiene autenticación, así que solo debe ser
+    # accesible desde la red interna (el backend usa http://kipu_signer_node:3000).
+    expose:
+      - "3000"
     environment:
       - PORT=3000
       - NODE_ENV=production
-      - DEBUG_SIGNER=true
     restart: always
     networks:          # ← mismo nivel que ports, volumes, etc.
       - red_infraestructura
