@@ -17,6 +17,8 @@ const {
     parsearCampoAdicional,
     getAmbiente,
     getUrlConsulta,
+    marcaKipu,
+    URL_MARCA,
 } = require('../helpers');
 
 // ── Dimensiones A4 ─────────────────────────────────────────────────────────────
@@ -525,6 +527,22 @@ function _labelValor(doc, label, valor, x, y, width) {
     doc.font('Helvetica').text(valor || '-', x, y + labelH, { width });
 }
 
+// ── PIE FINAL ──────────────────────────────────────────────────────────────────
+// En A4 solo el plan gratis lleva marca (antes el A4 no llevaba ninguna).
+function dibujarPieFinal(doc, currentY, emisor) {
+    if (marcaKipu(emisor) !== 'GRATIS') return currentY;
+    let y = currentY + 16;
+    if (y > doc.page.height - doc.page.margins.bottom - 12) {
+        doc.addPage();
+        y = doc.page.margins.top;
+    }
+    doc.fontSize(7.5).font('Helvetica').fillColor('#888888')
+        .text('Facturado con Kipu · Factura electrónica gratis en kipu.ec', A4.margin, y,
+              { width: A4.pageWidth, align: 'center', link: URL_MARCA });
+    doc.fillColor('black');
+    return y + 12;
+}
+
 // ── EXPORTS ────────────────────────────────────────────────────────────────────
 module.exports = {
     A4,
@@ -534,4 +552,5 @@ module.exports = {
     dibujarTotales,
     dibujarInfoAdicional,
     dibujarFormasPago,
+    dibujarPieFinal,
 };

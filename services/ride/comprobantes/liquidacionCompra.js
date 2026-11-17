@@ -173,8 +173,11 @@ async function _renderA4(
     const yPie = y + 15;
 
     let yIzq = formato.dibujarInfoAdicional(doc, infoAdc, yPie);
-    formato.dibujarFormasPago(doc, pagos, yIzq);
-    formato.dibujarTotales(doc, impuestos, resumen, 'VALOR TOTAL', yPie);
+    const yPagos = formato.dibujarFormasPago(doc, pagos, yIzq);
+    const yTotal = formato.dibujarTotales(doc, impuestos, resumen, 'VALOR TOTAL', yPie);
+
+    // 5. Pie final (en A4 solo el plan gratis lleva la marca de Kipu)
+    formato.dibujarPieFinal(doc, Math.max(yPie, yPagos || 0, yTotal || 0));
 
     doc.end();
     return stream;

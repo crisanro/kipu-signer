@@ -73,7 +73,9 @@ if (tipoDoc) {
 //
 // Parámetros:
 //   xmlAutorizado       — XML del comprobante (firmado o autorizado)
-//   emisor              — { contribuyente_especial, ... }
+//   emisor              — { contribuyente_especial, marca_kipu?, ... }
+//                         marca_kipu: true = plan gratis ("Facturado con Kipu"),
+//                         false = Pro / Al Día (sin marca), ausente = como siempre
 //   fechaAutorizacion   — string fecha/hora (null si provisional)
 //   formato             — 'a4' | 't80' | 't58'
 //   provisional         — true si el doc aún no está autorizado (optional, default false)
