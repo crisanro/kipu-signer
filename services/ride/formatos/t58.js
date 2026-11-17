@@ -17,6 +17,7 @@ const {
     getAmbiente,
     getUrlConsulta,
 } = require('../helpers');
+const { marcaKipu } = require('../helpers');
 
 // ── Dimensiones 58mm ───────────────────────────────────────────────────────────
 const T58 = {
@@ -348,13 +349,18 @@ function dibujarFormasPago(doc, pagosArr, currentY) {
 }
 
 // ── PIE FINAL ──────────────────────────────────────────────────────────────────
-function dibujarPieFinal(doc, currentY) {
+function dibujarPieFinal(doc, currentY, emisor) {
+    const marca = marcaKipu(emisor);
+    if (marca === 'SIN_MARCA') return currentY;          // Pro / Al Día
+    const [linea1, linea2] = marca === 'GRATIS'
+        ? ['Facturado con Kipu', 'Factura electrónica gratis en kipu.ec']
+        : ['Documento generado por kipu.ec', 'Facturación Electrónica Ecuador'];
     const w = T58.pageWidth - T58.margin * 2;
     let y   = currentY + 4;
     sep(doc, y); y += T58.rowH;
     doc.fontSize(T58.fontSmall).font('Helvetica').fillColor('#777777')
-        .text('Documento generado por kipu.ec', T58.margin, y, { width: w, align: 'center' });
-    doc.text('Facturación Electrónica Ecuador', T58.margin, y + T58.rowH - 2, { width: w, align: 'center' });
+        .text(linea1, T58.margin, y, { width: w, align: 'center' });
+    doc.text(linea2, T58.margin, y + T58.rowH - 2, { width: w, align: 'center' });
     doc.fillColor('black');
     return y + T58.rowH * 2 + 8;
 }

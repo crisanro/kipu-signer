@@ -166,6 +166,17 @@ const getAmbiente = (v) => String(v) === '2' ? 'PRODUCCIÓN' : 'PRUEBAS';
 const getUrlConsulta = (claveAcceso) =>
     `https://consulta.kipu.ec/?id=${String(claveAcceso).trim()}`;
 
+// ── Marca de Kipu en el pie del RIDE ───────────────────────────────────────────
+// La decide el backend según el plan (emisor.marca_kipu):
+//   true      → plan gratis: "Facturado con Kipu"
+//   false     → Pro / Al Día: sin marca
+//   undefined → como siempre (los tickets dicen "Documento generado por kipu.ec")
+const marcaKipu = (emisor) => {
+    const m = emisor && emisor.marca_kipu;
+    return m === true ? 'GRATIS' : m === false ? 'SIN_MARCA' : 'ANTERIOR';
+};
+const URL_MARCA = 'https://kipu.ec/?utm_source=ride&utm_medium=pdf&utm_campaign=gratis';
+
 module.exports = {
     fmtNum,
     fmtMoney,
@@ -180,4 +191,6 @@ module.exports = {
     parsearCampoAdicional,
     getAmbiente,
     getUrlConsulta,
+    marcaKipu,
+    URL_MARCA,
 };

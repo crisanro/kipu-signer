@@ -105,9 +105,15 @@ async function generarPDFStream(
         );
     }
 
+    // ── Marca de Kipu en el pie (emisor.marca_kipu, la decide el backend) ──────
+    // Copia del formato cuyo pie ya conoce al emisor: así los comprobantes no
+    // cambian (algunos dibujan el pie donde no tienen al emisor a mano).
+    const formatoEmisor = Object.create(formato);
+    formatoEmisor.dibujarPieFinal = (doc, y) => formato.dibujarPieFinal(doc, y, emisor);
+
     // ── Generar PDF ────────────────────────────────────────────────────────────
     try {
-        const stream = await renderFn(comprobante, emisor, estadoFactura, fechaAuth, formato);
+        const stream = await renderFn(comprobante, emisor, estadoFactura, fechaAuth, formatoEmisor);
         return stream;
     } catch (e) {
         console.error(`[RIDE] ❌ Error generando PDF:`, e.message);
