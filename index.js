@@ -16,7 +16,7 @@ app.use(express.json({ limit: '15mb' }));
 app.post('/api/firmar', async (req, res) => {
     let xmlString;
     try {
-        const { xmlObj, emisor, p12Base64, formato = 'a4' } = req.body;
+        const { xmlObj, emisor, p12Base64 } = req.body;
         if (!xmlObj || !emisor || !p12Base64) {
             return res.status(400).json({ ok: false, error: "Faltan parámetros requeridos" });
         }
@@ -48,14 +48,11 @@ if (tipoDoc) {
         // 4. FIRMA DIGITAL (XAdES-BES)
         const xmlFirmado = signInvoiceXmlCustom(xmlString, p12);
 
-        // 5. GENERACIÓN DE RIDE (PDF)
-        const pdfStream = await generarPDFStream(xmlFirmado, emisor, 'FIRMADO', null, formato);
-        const pdfBuffer = await streamToBuffer(pdfStream);
-
+        // El RIDE (PDF) no se arma aquí: Kipu lo pide aparte a /api/pdf cuando
+        // hace falta. Armarlo en cada firma gastaba CPU en un PDF que nadie usaba.
         res.json({
             ok:        true,
-            xmlFirmado: xmlFirmado,
-            pdfBase64:  pdfBuffer.toString('base64')
+            xmlFirmado: xmlFirmado
         });
     } catch (error) {
         console.error("[Microservicio Error]:", error.message);
