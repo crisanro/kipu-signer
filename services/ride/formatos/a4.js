@@ -47,6 +47,15 @@ const A4 = {
     fontLarge:    9,
     fontTitle:    11,
 
+    // Borde de los recuadros (cabecera, cliente, información adicional, pie):
+    // el mismo en todo el A4. Se fija antes de cada recuadro con _borde(),
+    // porque pdfkit arrastra el último color y grosor usados (antes un gris
+    // de otro dibujo quedaba pegado y unos recuadros salían grises y otros no).
+    colorBorde:   '#000000',
+    bordeAncho:   1,
+    // Líneas entre filas de las tablas (ítems, totales, forma de pago): gris claro
+    colorLineaTabla: '#cccccc',
+
     // Colores
     colorGrisClaro:  '#f5f5f5',
     colorGrisMedio:  '#e0e0e0',
@@ -66,9 +75,20 @@ const A4 = {
     },
 };
 
+// Borde estándar de los recuadros del A4 (ver A4.colorBorde)
+function _borde(doc) {
+    return doc.strokeColor(A4.colorBorde).lineWidth(A4.bordeAncho);
+}
+
+// Línea de las filas de las tablas: gris claro, mismo grosor que los recuadros
+function _lineaTabla(doc) {
+    return doc.strokeColor(A4.colorLineaTabla).lineWidth(A4.bordeAncho);
+}
+
 // ── CABECERA ───────────────────────────────────────────────────────────────────
 // Dibuja la cabecera completa del RIDE:
-// Izquierda: logo + datos del emisor
+// Izquierda: datos del emisor, centrados en el recuadro (con logo, cuando exista:
+//            el logo arriba y los datos debajo)
 // Derecha:   tipo comprobante + número + clave acceso + QR + código barras
 //
 // Parámetros:
@@ -94,20 +114,23 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
     const cabeceraH = 178 + extraH;
 
     // ── Columna izquierda ──────────────────────────────────────────────────
+    _borde(doc);
     doc.rect(margin, startY, leftColW, cabeceraH).stroke();
 
-    // Espacio logo
-    doc.rect(margin + 5, startY + 5, leftColW - 10, 55)
-        .fillAndStroke('#fafafa', '#cccccc');
-    doc.fontSize(7).font('Helvetica').fillColor('#bbbbbb')
-        .text('LOGO', margin + 5, startY + 28, { width: leftColW - 10, align: 'center' });
-    doc.fillColor('black');
+    // Posición vertical de los datos del emisor. Las medidas de abajo son las de
+    // siempre (pensadas con 60 de logo arriba: la razón social en 66). Sin logo,
+    // el bloque (de la razón social al final de las leyendas) se centra en el
+    // recuadro; con logo (backlog: el Pro sube su logo), va debajo del logo.
+    const tieneLogo     = false;
+    const altoContenido = (172 + extraH) - 66;
+    const arriba        = tieneLogo ? 66 : Math.round((cabeceraH - altoContenido) / 2);
+    const y = (medida) => startY + arriba + (medida - 66);
 
     // Razón social
     doc.fontSize(A4.fontLarge).font('Helvetica-Bold')
         .text(
             infoTrib.razonSocial,
-            margin + 5, startY + 66,
+            margin + 5, y(66),
             { width: leftColW - 10, align: 'center' }
         );
 
@@ -116,42 +139,49 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
         doc.fontSize(A4.fontNormal).font('Helvetica').fillColor(A4.colorTextoGris)
             .text(
                 infoTrib.nombreComercial,
-                margin + 5, startY + 80,
+                margin + 5, y(80),
                 { width: leftColW - 10, align: 'center' }
             );
         doc.fillColor('black');
     }
 
     // Dirección matriz
-    _labelValor(doc, 'Dirección Matriz:', infoTrib.dirMatriz, margin + 5, startY + 95, leftColW - 10);
+    _labelValor(doc, 'Dirección Matriz:', infoTrib.dirMatriz, margin + 5, y(95), leftColW - 10);
 
     // Dirección establecimiento
     _labelValor(doc,
         'Dirección Establecimiento:',
         datosExtra.dirEstablecimiento || infoTrib.dirMatriz,
-        margin + 5, startY + 118, leftColW - 10
+        margin + 5, y(118), leftColW - 10
     );
 
+    // Etiqueta + valor en una fila: todos los valores en una misma columna,
+    // alineados a la izquierda, justo después de la etiqueta más larga que se muestre
+    const ETQ_OBLIGADO = 'Obligado a llevar contabilidad:';
+    const ETQ_ESPECIAL = 'Contribuyente Especial Nro:';
+    const ETQ_AGENTE   = 'Agente de Retención Resolución No:';
+    doc.fontSize(A4.fontNormal).font('Helvetica-Bold');
+    const etiquetas = [ETQ_OBLIGADO, ETQ_ESPECIAL, ...(infoTrib.agenteRetencion ? [ETQ_AGENTE] : [])];
+    const xValor    = margin + 5 + Math.max(...etiquetas.map(t => doc.widthOfString(t))) + 5;
+    const anchoValor = margin + leftColW - 5 - xValor;
+    const filaValor = (etiqueta, valor, yFila) => {
+        doc.font('Helvetica-Bold').text(etiqueta, margin + 5, yFila);
+        doc.font('Helvetica').text(String(valor), xValor, yFila, { width: anchoValor });
+    };
+
     // Obligado a contabilidad
-    doc.fontSize(A4.fontNormal).font('Helvetica-Bold')
-        .text('Obligado a llevar contabilidad:', margin + 5, startY + 148);
-    doc.font('Helvetica')
-        .text(datosExtra.obligadoContabilidad || 'NO', margin + 157, startY + 148);
+    filaValor(ETQ_OBLIGADO, datosExtra.obligadoContabilidad || 'NO', y(148));
 
     // Contribuyente especial
     const contribEsp = datosExtra.contribuyenteEspecial ||
                        (emisor && emisor.contribuyente_especial) || '-';
-    doc.font('Helvetica-Bold')
-        .text('Contribuyente Especial Nro:', margin + 5, startY + 160);
-    doc.font('Helvetica').text(contribEsp, margin + 137, startY + 160);
+    filaValor(ETQ_ESPECIAL, contribEsp, y(160));
 
     // ── Leyendas SRI — Ficha Técnica v2.34 ─────────────────────────────────
-    let yLeyenda = startY + 172;
+    let yLeyenda = y(172);
 
     if (infoTrib.agenteRetencion) {
-        doc.font('Helvetica-Bold')
-            .text('Agente de Retención Resolución No:', margin + 5, yLeyenda);
-        doc.font('Helvetica').text(infoTrib.agenteRetencion, margin + 175, yLeyenda);
+        filaValor(ETQ_AGENTE, infoTrib.agenteRetencion, yLeyenda);
         yLeyenda += 12;
     }
 
@@ -165,6 +195,7 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
     }
 
     // ── Columna derecha ────────────────────────────────────────────────────
+    _borde(doc);
     doc.rect(rightColX, startY, rightColW, cabeceraH).stroke();
 
     // RUC
@@ -186,6 +217,7 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
         );
 
     // Separador
+    _borde(doc);
     doc.moveTo(rightColX, startY + 57)
         .lineTo(rightColX + rightColW, startY + 57)
         .stroke();
@@ -280,6 +312,7 @@ function dibujarDatosComprador(doc, datos, extraFilas, currentY) {
     const totalFilas = filasBase + (extraFilas ? extraFilas.length : 0);
     const blockH = totalFilas * 14 + 6;
 
+    _borde(doc);
     doc.rect(margin, currentY, pageWidth, blockH).stroke();
 
     // Fila 1 — Razón social
@@ -345,8 +378,9 @@ function dibujarItems(doc, detalles, currentY) {
 
         // Filas alternadas gris/blanco
         const fillColor = i % 2 === 0 ? colorGrisClaro : 'white';
+        _lineaTabla(doc);
         doc.rect(margin, currentY, pageWidth, rowH)
-            .fillAndStroke(fillColor, '#cccccc');
+            .fillAndStroke(fillColor, A4.colorLineaTabla);
         doc.fillColor('black');
 
         // Código — prefiere codigoPrincipal, fallback a codigoInterno
@@ -394,7 +428,8 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
     const drawRow = (label, val, y, opts = {}) => {
         const { bold = false, highlight = false } = opts;
         const bgColor = highlight ? colorGrisOscuro : 'white';
-        doc.rect(rightFtrX, y, rightFtrW, rowH).fillAndStroke(bgColor, '#cccccc');
+        _lineaTabla(doc);
+        doc.rect(rightFtrX, y, rightFtrW, rowH).fillAndStroke(bgColor, A4.colorLineaTabla);
         doc.fillColor('black');
         const labelW = rightFtrW - 62;
         doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(A4.fontNormal)
@@ -471,6 +506,7 @@ function dibujarInfoAdicional(doc, camposAdicionales, currentY) {
     const totalH = medidas.reduce((s, h) => s + h, 0) + 8; // padding top + bottom
 
     // Recuadro
+    _borde(doc);
     doc.rect(margin, currentY, leftFooterW, totalH).stroke();
 
     // Campos
@@ -509,6 +545,7 @@ function dibujarFormasPago(doc, pagosArr, currentY) {
 
     // Filas
     pagos.forEach(pago => {
+        _lineaTabla(doc);
         doc.rect(margin, currentY, leftFooterW, rowH).stroke();
         const desc = FORMAS_PAGO[pago.formaPago] || pago.formaPago || '-';
         doc.fontSize(A4.fontNormal).font('Helvetica')
