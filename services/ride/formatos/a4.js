@@ -19,6 +19,8 @@ const {
     getUrlConsulta,
     marcaKipu,
     URL_MARCA,
+    logoDelEmisor,
+    dibujarLogo,
 } = require('../helpers');
 
 // ── Dimensiones A4 ─────────────────────────────────────────────────────────────
@@ -87,7 +89,7 @@ function _lineaTabla(doc) {
 
 // ── CABECERA ───────────────────────────────────────────────────────────────────
 // Dibuja la cabecera completa del RIDE:
-// Izquierda: datos del emisor, centrados en el recuadro (con logo, cuando exista:
+// Izquierda: datos del emisor, centrados en el recuadro (con logo de la empresa:
 //            el logo arriba y los datos debajo)
 // Derecha:   tipo comprobante + número + clave acceso + QR + código barras
 //
@@ -98,7 +100,7 @@ function _lineaTabla(doc) {
 //   datosExtra       — { dirEstablecimiento, obligadoContabilidad, contribuyenteEspecial }
 //   estadoFactura    — 'FIRMADO' | 'AUTORIZADO'
 //   fechaAuth        — string fecha/hora autorización SRI
-//   emisor           — objeto emisor del backend (para contribuyente_especial)
+//   emisor           — objeto emisor del backend (contribuyente_especial, logo)
 //
 // Retorna el Y donde termina la cabecera.
 async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactura, fechaAuth, emisor) {
@@ -120,8 +122,10 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
     // Posición vertical de los datos del emisor. Las medidas de abajo son las de
     // siempre (pensadas con 60 de logo arriba: la razón social en 66). Sin logo,
     // el bloque (de la razón social al final de las leyendas) se centra en el
-    // recuadro; con logo (backlog: el Pro sube su logo), va debajo del logo.
-    const tieneLogo     = false;
+    // recuadro; con logo (cualquier plan), el logo va arriba, centrado en su
+    // espacio, y los datos debajo.
+    const logo      = logoDelEmisor(emisor);
+    const tieneLogo = dibujarLogo(doc, logo, margin + 5, startY + 6, leftColW - 10, 54) > 0;
     const altoContenido = (172 + extraH) - 66;
     const arriba        = tieneLogo ? 66 : Math.round((cabeceraH - altoContenido) / 2);
     const y = (medida) => startY + arriba + (medida - 66);

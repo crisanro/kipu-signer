@@ -17,7 +17,7 @@ const {
     getAmbiente,
     getUrlConsulta,
 } = require('../helpers');
-const { marcaKipu } = require('../helpers');
+const { marcaKipu, logoDelEmisor, dibujarLogo, altoDelLogo } = require('../helpers');
 
 // ── Dimensiones 58mm ───────────────────────────────────────────────────────────
 const T58 = {
@@ -32,6 +32,7 @@ const T58 = {
     lineGap:     1,
     colorGris:   '#eeeeee',
     separador:   '--------------------------------',
+    logoAltoMax: 40,
 };
 
 // ── Helpers internos ───────────────────────────────────────────────────────────
@@ -64,9 +65,16 @@ function textoH(doc, texto, width, fontSize = T58.fontNormal) {
 }
 
 // ── CABECERA ───────────────────────────────────────────────────────────────────
-async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactura, fechaAuth) {
+async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactura, fechaAuth, emisor) {
     const w = T58.pageWidth - T58.margin * 2;
     let y   = 8;
+
+    // Logo de la empresa (llega en blanco y negro para la térmica), centrado arriba
+    const logo     = logoDelEmisor(emisor);
+    const altoLogo = altoDelLogo(doc, logo, w, T58.logoAltoMax);
+    if (altoLogo > 0 && dibujarLogo(doc, logo, T58.margin, y, w, altoLogo) > 0) {
+        y += altoLogo + 3;
+    }
 
     // Razón social
     doc.fontSize(T58.fontLarge).font('Helvetica-Bold')

@@ -110,6 +110,9 @@ async function generarPDFStream(
     // cambian (algunos dibujan el pie donde no tienen al emisor a mano).
     const formatoEmisor = Object.create(formato);
     formatoEmisor.dibujarPieFinal = (doc, y) => formato.dibujarPieFinal(doc, y, emisor);
+    // Igual con la cabecera (logo de la empresa): los tickets la llaman sin el emisor
+    formatoEmisor.dibujarCabecera = (doc, infoTrib, labelTipo, datosExtra, estadoFactura, fechaAuth) =>
+        formato.dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactura, fechaAuth, emisor);
 
     // ── Generar PDF ────────────────────────────────────────────────────────────
     try {
