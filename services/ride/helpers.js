@@ -177,7 +177,53 @@ const marcaKipu = (emisor) => {
 };
 const URL_MARCA = 'https://kipu.ec/?utm_source=ride&utm_medium=pdf&utm_campaign=gratis';
 
+// ── Logo de la empresa ─────────────────────────────────────────────────────────
+// emisor.logo: base64 de un PNG o JPG que el backend ya redujo (máx. 300 px,
+// ~100 KB): a color para el A4 y en blanco y negro para los tickets. Lo que no
+// sea un PNG/JPG chico se ignora y el RIDE sale sin logo, nunca deja de salir.
+const LOGO_MAX_BYTES = 150 * 1024;
+
+function logoDelEmisor(emisor) {
+    const b64 = emisor && emisor.logo;
+    if (typeof b64 !== 'string' || !b64 || b64.length > LOGO_MAX_BYTES * 4 / 3 + 4) return null;
+    const buf = Buffer.from(b64, 'base64');
+    const esPng = buf.length > 8 && buf.readUInt32BE(0) === 0x89504e47;
+    const esJpg = buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    return (esPng || esJpg) && buf.length <= LOGO_MAX_BYTES ? buf : null;
+}
+
+// Dibuja el logo centrado dentro de la caja (x, y, anchoMax, altoMax), sin
+// agrandarlo ni deformarlo. Retorna el alto que ocupó (0 si no hay logo o falla).
+function dibujarLogo(doc, logo, x, y, anchoMax, altoMax) {
+    if (!logo) return 0;
+    try {
+        const img    = doc.openImage(logo);
+        const escala = Math.min(anchoMax / img.width, altoMax / img.height, 1);
+        const ancho  = img.width * escala;
+        const alto   = img.height * escala;
+        doc.image(img, x + (anchoMax - ancho) / 2, y + (altoMax - alto) / 2, { width: ancho, height: alto });
+        return altoMax;
+    } catch (e) {
+        console.warn('[RIDE] Logo ignorado:', e.message);
+        return 0;
+    }
+}
+
+// Alto real del logo dentro de un ancho máximo (para los tickets, que crecen hacia abajo)
+function altoDelLogo(doc, logo, anchoMax, altoMax) {
+    if (!logo) return 0;
+    try {
+        const img = doc.openImage(logo);
+        return img.height * Math.min(anchoMax / img.width, altoMax / img.height, 1);
+    } catch (e) {
+        return 0;
+    }
+}
+
 module.exports = {
+    logoDelEmisor,
+    dibujarLogo,
+    altoDelLogo,
     fmtNum,
     fmtMoney,
     toArray,
