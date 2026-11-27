@@ -1,4 +1,5 @@
 //index.js
+const crypto = require('crypto');
 const express = require('express');
 const { create } = require('xmlbuilder2');
 const { decrypt } = require('./utils/cryptoUtils');
@@ -6,6 +7,23 @@ const { signInvoiceXmlCustom, validarP12, leerP12 } = require('./services/signer
 const { generarPDFStream, streamToBuffer } = require('./services/ride');
 
 const app = express();
+
+// ─── Clave compartida con kipu-core1 (cabecera X-Signer-Key) ─────────────────
+// El firmador solo debe atender al backend: sin clave, cualquier contenedor de
+// la red interna podía pedirle firmas o PDFs. Se exige solo si SIGNER_API_KEY
+// está definida, así se activa poniendo el mismo valor en el .env de los dos
+// servicios. Va antes del parseo del body: no se leen 15 MB de quien no tiene clave.
+const SIGNER_API_KEY = process.env.SIGNER_API_KEY || '';
+if (SIGNER_API_KEY) {
+    const esperada = Buffer.from(SIGNER_API_KEY);
+    app.use('/api', (req, res, next) => {
+        const recibida = Buffer.from(String(req.get('x-signer-key') || ''));
+        if (recibida.length !== esperada.length || !crypto.timingSafeEqual(recibida, esperada)) {
+            return res.status(401).json({ ok: false, error: 'No autorizado.' });
+        }
+        next();
+    });
+}
 
 // Aumentamos el límite para recibir XMLs y Firmas pesadas
 app.use(express.json({ limit: '15mb' })); 
@@ -128,4 +146,5 @@ app.post('/api/validar-p12', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`[Microservicio Firmador] Corriendo en puerto ${PORT} 🚀`);
+    console.log(`[Microservicio Firmador] Clave compartida (X-Signer-Key): ${SIGNER_API_KEY ? 'exigida' : 'NO configurada (SIGNER_API_KEY)'}`);
 });
