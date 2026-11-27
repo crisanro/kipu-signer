@@ -1,5 +1,6 @@
-# Usamos una versión ligera de Node.js
-FROM node:20-slim
+# Usamos una versión ligera de Node.js. 24 = LTS con parches hasta 2028
+# (Node 20 dejó de recibirlos en abril de 2026)
+FROM node:24-slim
 
 # Instalamos dependencias del sistema necesarias para fuentes (PDFKit/Canvas)
 RUN apt-get update && apt-get install -y \
@@ -24,6 +25,10 @@ EXPOSE 3000
 
 # Correr sin root (usuario "node" que trae la imagen oficial)
 USER node
+
+# Sin esto, si se arranca solo con la imagen (sin docker-compose), Express
+# devuelve el stack de los errores en la respuesta
+ENV NODE_ENV=production
 
 # Comando para arrancar
 CMD ["node", "index.js"]

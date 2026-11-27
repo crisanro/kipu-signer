@@ -2,13 +2,16 @@ services:
   signer-node:
     build: .
     container_name: kipu_signer_node
-    # Sin "ports": el servicio no tiene autenticación, así que solo debe ser
-    # accesible desde la red interna (el backend usa http://kipu_signer_node:3000).
+    # Sin "ports": solo accesible desde la red interna (el backend usa
+    # http://kipu_signer_node:3000). Además exige X-Signer-Key si SIGNER_API_KEY está definida.
     expose:
       - "3000"
     environment:
       - PORT=3000
       - NODE_ENV=production
+      # Mismo valor que SIGNER_API_KEY en el .env de kipu-core1. Se toma de las
+      # variables del proyecto en Dokploy; vacía = el firmador no exige clave.
+      - SIGNER_API_KEY=${SIGNER_API_KEY:-}
     restart: always
     deploy:
       resources:
