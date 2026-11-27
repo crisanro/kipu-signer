@@ -5,6 +5,46 @@ const forge = require('node-forge');
 
 const DEBUG_SIGNER = process.env.DEBUG_SIGNER === 'true';
 
+// ── Tope de iteraciones al abrir un .p12 ─────────────────────────────────────
+// El .p12 dice cuántas veces repetir la derivación de su llave (MAC, partes
+// cifradas, llave privada) y forge no pone tope. Un archivo armado con miles de
+// millones dejaba el firmador ocupado horas, sin firmar ni hacer PDFs para nadie.
+// Las firmas reales usan ~2.000 a 10.000 por derivación (unas pocas por archivo).
+// El tope va en las funciones de derivación, no en una revisión previa del
+// archivo: así también cubre las llaves que vienen dentro de una parte cifrada.
+const MAX_ITERACIONES_P12 = parseInt(process.env.P12_MAX_ITERACIONES || '500000', 10);
+const MENSAJE_ITERACIONES = 'La firma electrónica tiene una protección fuera de lo normal y no se puede usar. Descárgala de nuevo de tu proveedor de firma.';
+let iteracionesRestantes = null;   // solo mientras leerP12 abre un archivo
+
+function _conTope(derivar, posIteraciones) {
+    return function (...args) {
+        if (iteracionesRestantes !== null) {
+            const iteraciones = Number(args[posIteraciones]);
+            if (!(iteraciones >= 1 && iteraciones <= iteracionesRestantes)) {
+                const error = new Error(MENSAJE_ITERACIONES);
+                error.code = 'P12_ITERACIONES';
+                throw error;
+            }
+            iteracionesRestantes -= iteraciones;
+        }
+        return derivar.apply(this, args);
+    };
+}
+forge.pkcs12.generateKey        = _conTope(forge.pkcs12.generateKey, 3);         // MAC
+forge.pki.pbe.generatePkcs12Key = _conTope(forge.pki.pbe.generatePkcs12Key, 3);  // cifrado PKCS#12
+forge.pkcs5.pbkdf2              = _conTope(forge.pkcs5.pbkdf2, 2);               // cifrado PBES2
+
+// Abre el .p12 (sincrónico: nadie más usa el contador mientras tanto).
+function leerP12(p12Buffer, password) {
+    const p12Asn1 = forge.asn1.fromDer(p12Buffer.toString('binary'));
+    iteracionesRestantes = MAX_ITERACIONES_P12;
+    try {
+        return forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
+    } finally {
+        iteracionesRestantes = null;
+    }
+}
+
 function _seleccionarCertDeFirma(p12) {
     const bags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || [];
     let targetBag = bags.find(b => {
@@ -134,8 +174,7 @@ function signInvoiceXmlCustom(xml, p12) {
 
 function validarP12(p12Buffer, password, rucEmisor) {
     try {
-        const p12Asn1 = forge.asn1.fromDer(p12Buffer.toString('binary'));
-        const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
+        const p12 = leerP12(p12Buffer, password);
         const { cert } = _seleccionarCertDeFirma(p12);
 
         // ── DEBUG TEMPORAL ──────────────────────────────
@@ -175,8 +214,9 @@ function validarP12(p12Buffer, password, rucEmisor) {
             datos: { ruc: rucDetectado, vence: cert.validity.notAfter }
         };
     } catch (e) {
+        if (e.code === 'P12_ITERACIONES') return { ok: false, mensaje: e.message };
         return { ok: false, mensaje: "P12 Inválido o contraseña incorrecta." };
     }
 }
 
-module.exports = { signInvoiceXmlCustom, validarP12 };
+module.exports = { signInvoiceXmlCustom, validarP12, leerP12 };

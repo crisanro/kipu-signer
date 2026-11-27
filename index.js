@@ -1,9 +1,8 @@
 //index.js
 const express = require('express');
 const { create } = require('xmlbuilder2');
-const forge = require('node-forge');
 const { decrypt } = require('./utils/cryptoUtils');
-const { signInvoiceXmlCustom, validarP12 } = require('./services/signer');
+const { signInvoiceXmlCustom, validarP12, leerP12 } = require('./services/signer');
 const { generarPDFStream, streamToBuffer } = require('./services/ride');
 
 const app = express();
@@ -41,9 +40,7 @@ if (tipoDoc) {
 
         // 3. PROCESAMIENTO DE FIRMA P12
         const password  = decrypt(emisor.p12_pass);
-        const p12Buffer = Buffer.from(p12Base64, 'base64');
-        const p12Asn1   = forge.asn1.fromDer(p12Buffer.toString('binary'));
-        const p12       = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
+        const p12       = leerP12(Buffer.from(p12Base64, 'base64'), password);
 
         // 4. FIRMA DIGITAL (XAdES-BES)
         const xmlFirmado = signInvoiceXmlCustom(xmlString, p12);
