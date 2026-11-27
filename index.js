@@ -1,8 +1,8 @@
 //index.js
+require('dotenv').config();   // .env local al desarrollar; en producción las variables las pone Docker
 const crypto = require('crypto');
 const express = require('express');
 const { create } = require('xmlbuilder2');
-const { decrypt } = require('./utils/cryptoUtils');
 const { signInvoiceXmlCustom, validarP12, leerP12 } = require('./services/signer');
 const { generarPDFStream, streamToBuffer } = require('./services/ride');
 
@@ -57,7 +57,8 @@ if (tipoDoc) {
         xmlString = create(xmlObj).end({ prettyPrint: false });
 
         // 3. PROCESAMIENTO DE FIRMA P12
-        const password  = decrypt(emisor.p12_pass);
+        // kipu-core1 la manda ya descifrada (el firmador no usa ENCRYPTION_KEY desde que se separó)
+        const password  = emisor.p12_pass;
         const p12       = leerP12(Buffer.from(p12Base64, 'base64'), password);
 
         // 4. FIRMA DIGITAL (XAdES-BES)
