@@ -13,6 +13,8 @@ const {
     toArray,
     FORMAS_PAGO,
     calcularImpuestos,
+    tarifasVisibles,
+    lineasDireccion,
     parsearCampoAdicional,
     getAmbiente,
     getUrlConsulta,
@@ -92,20 +94,22 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
     // RUC
     centrado(doc, `RUC: ${infoTrib.ruc}`, y, { bold: true }); y += T58.rowH;
 
-    // Dirección
-    const dir = datosExtra.dirEstablecimiento || infoTrib.dirMatriz || '';
-    if (dir) {
+    // Direcciones (Anexo 2): matriz y, si es otra, la del establecimiento
+    lineasDireccion(infoTrib, datosExtra).forEach(linea => {
         doc.fontSize(T58.fontSmall).font('Helvetica').fillColor('#555555')
-            .text(dir, T58.margin, y, { width: w, align: 'center' });
+            .text(linea, T58.margin, y, { width: w, align: 'center' });
         doc.fillColor('black');
-        y += textoH(doc, dir, w, T58.fontSmall);
-    }
+        y += textoH(doc, linea, w, T58.fontSmall);
+    });
 
     // Contribuyente especial
     if (datosExtra.contribuyenteEspecial) {
         centrado(doc, `Contrib. Esp: ${datosExtra.contribuyenteEspecial}`, y, { fontSize: T58.fontSmall });
         y += T58.rowH - 1;
     }
+
+    centrado(doc, `Obligado a llevar contab.: ${datosExtra.obligadoContabilidad || 'NO'}`, y, { fontSize: T58.fontSmall });
+    y += T58.rowH - 1;
 
     // ── Leyendas SRI — Ficha Técnica v2.34 ─────────────────────────────────
     if (infoTrib.agenteRetencion) {
@@ -141,7 +145,7 @@ async function dibujarCabecera(doc, infoTrib, labelTipo, datosExtra, estadoFactu
 
     // Ambiente
     doc.fontSize(T58.fontSmall).font('Helvetica').fillColor('#777777')
-        .text(`Ambiente: ${getAmbiente(infoTrib.ambiente)}`, T58.margin, y, { width: w, align: 'center' });
+        .text(`Ambiente: ${getAmbiente(infoTrib.ambiente)} · Emisión: NORMAL`, T58.margin, y, { width: w, align: 'center' });
     doc.fillColor('black');
     y += T58.rowH;
 
@@ -268,26 +272,18 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
         y += T58.rowH;
     };
 
-    // Subtotales por tarifa — siempre visibles
-    const base15 = imp.porTarifa['15']?.base || 0;
-    const base5  = imp.porTarifa['5']?.base  || 0;
-    const base0  = imp.porTarifa['0']?.base  || 0;
-
-    rowTot('Subtotal 15%',      base15);
-    rowTot('Subtotal 5%',       base5);
-    rowTot('Subtotal 0%',       base0);
+    // Subtotales por tarifa — siempre 15%, 5% y 0%, más las otras que traiga
+    const tarifas = tarifasVisibles(imp);
+    tarifas.forEach(t => rowTot(`Subtotal ${t}%`, imp.porTarifa[t]?.base || 0));
+    rowTot('Subtotal 0%',       imp.porTarifa['0']?.base || 0);
     rowTot('No objeto IVA',     imp.noObjetoIVA || 0);
     rowTot('Exento IVA',        imp.exentoIVA   || 0);
     rowTot('Subtotal sin imp.', resumen.totalSinImpuestos || 0);
     rowTot('Descuento',         resumen.totalDescuento    || 0);
     rowTot('ICE',               imp.totalICE              || 0);
 
-    // IVA por tarifa — siempre visibles
-    const iva15 = imp.porTarifa['15']?.valor || 0;
-    const iva5  = imp.porTarifa['5']?.valor  || 0;
-
-    rowTot('IVA 15%',           iva15);
-    rowTot('IVA 5%',            iva5);
+    // IVA por tarifa — las mismas tarifas de arriba
+    tarifas.forEach(t => rowTot(`IVA ${t}%`, imp.porTarifa[t]?.valor || 0));
     rowTot('IRBPNR',            imp.totalIRBPNR || 0);
     rowTot('Propina',           resumen.propina  || 0);
 

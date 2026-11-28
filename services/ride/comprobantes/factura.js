@@ -169,7 +169,7 @@ async function _renderA4(
             razonSocial:    infoFac.razonSocialComprador,
             identificacion: infoFac.identificacionComprador,
             fechaEmision:   infoFac.fechaEmision,
-            direccion:      infoFac.dirEstablecimiento,
+            direccion:      infoFac.direccionComprador || null,   // la del comprador, no la del emisor
         },
         infoFac.guiaRemision ? [{
             label: 'Guía Remisión', valor: infoFac.guiaRemision, labelW: 75,

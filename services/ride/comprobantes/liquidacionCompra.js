@@ -160,7 +160,7 @@ async function _renderA4(
             razonSocial:    infoLiq.razonSocialProveedor,
             identificacion: infoLiq.identificacionProveedor,
             fechaEmision:   infoLiq.fechaEmision,
-            direccion:      infoLiq.dirEstablecimiento,
+            direccion:      infoLiq.direccionProveedor || null,   // la del proveedor, no la del emisor
         },
         [],
         y

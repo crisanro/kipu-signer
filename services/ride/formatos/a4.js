@@ -14,6 +14,7 @@ const {
     toArray,
     FORMAS_PAGO,
     calcularImpuestos,
+    tarifasVisibles,
     parsearCampoAdicional,
     getAmbiente,
     getUrlConsulta,
@@ -444,26 +445,22 @@ function dibujarTotales(doc, totalConImpuestos, resumen, labelTotal, currentY) {
 
     let ty = currentY;
 
-    // Subtotales por tarifa — siempre mostrar 15%, 5%, 0%
-    const base15 = imp.porTarifa['15']?.base || 0;
-    const base5  = imp.porTarifa['5']?.base  || 0;
-    const base0  = imp.porTarifa['0']?.base  || 0;
-
-    drawRow('SUBTOTAL 15%',           base15,                          ty); ty += rowH;
-    drawRow('SUBTOTAL 5%',            base5,                           ty); ty += rowH;
-    drawRow('SUBTOTAL IVA 0%',        base0,                           ty); ty += rowH;
+    // Subtotales por tarifa — siempre 15%, 5% y 0%, más las otras que traiga
+    const tarifas = tarifasVisibles(imp);
+    tarifas.forEach(t => {
+        drawRow(`SUBTOTAL ${t}%`,     imp.porTarifa[t]?.base || 0,     ty); ty += rowH;
+    });
+    drawRow('SUBTOTAL IVA 0%',        imp.porTarifa['0']?.base || 0,   ty); ty += rowH;
     drawRow('SUBTOTAL NO OBJETO IVA', imp.noObjetoIVA || 0,            ty); ty += rowH;
     drawRow('SUBTOTAL EXENTO IVA',    imp.exentoIVA   || 0,            ty); ty += rowH;
     drawRow('SUBTOTAL SIN IMPUESTOS', resumen.totalSinImpuestos || 0,  ty); ty += rowH;
     drawRow('DESCUENTO',              resumen.totalDescuento    || 0,  ty); ty += rowH;
     drawRow('ICE',                    imp.totalICE              || 0,  ty); ty += rowH;
 
-    // IVA por tarifa — siempre mostrar 15% y 5%
-    const iva15 = imp.porTarifa['15']?.valor || 0;
-    const iva5  = imp.porTarifa['5']?.valor  || 0;
-
-    drawRow('IVA 15%',                iva15,                           ty); ty += rowH;
-    drawRow('IVA 5%',                 iva5,                            ty); ty += rowH;
+    // IVA por tarifa — las mismas tarifas de arriba
+    tarifas.forEach(t => {
+        drawRow(`IVA ${t}%`,          imp.porTarifa[t]?.valor || 0,    ty); ty += rowH;
+    });
     drawRow('IRBPNR',                 imp.totalIRBPNR || 0,            ty); ty += rowH;
     drawRow('PROPINA',                resumen.propina  || 0,            ty); ty += rowH;
 

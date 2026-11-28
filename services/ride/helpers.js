@@ -87,18 +87,33 @@ function detectarTipo(xmlObj) {
 
 // ── Calcular subtotales de impuestos ───────────────────────────────────────────
 // Recibe el array de totalImpuesto y retorna un objeto con subtotales por tarifa.
-// Maneja múltiples tarifas: 0%, 5%, 8%, 15%, ICE, IRBPNR, etc.
-// Tabla de codigoPorcentaje → tarifa real
+// Maneja múltiples tarifas: 0%, 5%, 8%, 12%, 13%, 14%, 15%, ICE, IRBPNR.
+// codigoPorcentaje → tarifa (Tabla 17 de la ficha). El 6 (no objeto) y el 7
+// (exento) no son tarifas: van aparte, nunca en el subtotal 0%.
 const CP_A_TARIFA = {
     "0":  "0",    // 0%
-    "2":  "12",   // 12% (antes de la reforma)
+    "2":  "12",   // 12%
     "3":  "14",   // 14%
-    "4":  "15",   // 15% ← el tuyo
+    "4":  "15",   // 15%
     "5":  "5",    // 5%
-    "6":  "0",    // No objeto IVA
-    "7":  "0",    // Exento
-    "10": "0",    // 0%
+    "8":  "8",    // 8% (tarifa especial de feriados)
+    "10": "13",   // 13%
 };
+const CP_NO_OBJETO = '6';
+const CP_EXENTO    = '7';
+
+// "15.00" → "15", "8" → "8": la misma tarifa siempre con la misma clave
+const _claveTarifa = (t) => {
+    const n = parseFloat(t);
+    return Number.isFinite(n) ? String(n) : null;
+};
+
+// Tarifas de IVA distintas de 0 que muestra el RIDE: 15% y 5% siempre (como
+// hasta ahora) y cualquier otra que traiga el comprobante, de mayor a menor.
+function tarifasVisibles(imp) {
+    const otras = Object.keys(imp.porTarifa).filter(t => t !== '0' && t !== '15' && t !== '5');
+    return ['15', '5', ...otras].sort((a, b) => parseFloat(b) - parseFloat(a));
+}
 
 function calcularImpuestos(totalImpuestos) {
     const result = {
@@ -118,23 +133,24 @@ function calcularImpuestos(totalImpuestos) {
         const base   = parseFloat(imp.baseImponible || 0);
         const valor  = parseFloat(imp.valor || 0);
 
-        // ← Usar tarifa del XML si existe, sino derivar del codigoPorcentaje
-        const tarifa = imp.tarifa !== undefined && imp.tarifa !== null && imp.tarifa !== ''
-            ? String(imp.tarifa)
-            : (CP_A_TARIFA[cp] ?? '0');
-
         if (codigo === '2') {
+            if (cp === CP_NO_OBJETO) {
+                result.noObjetoIVA += base;
+                return;
+            }
+            if (cp === CP_EXENTO) {
+                result.exentoIVA += base;
+                return;
+            }
+            // Tarifa del XML si viene (ND, detalles); si no, la del codigoPorcentaje
+            const tarifa = _claveTarifa(imp.tarifa) ?? CP_A_TARIFA[cp] ?? '0';
             if (!result.porTarifa[tarifa]) {
                 result.porTarifa[tarifa] = { base: 0, valor: 0, codigoPorcentaje: cp };
             }
             result.porTarifa[tarifa].base  += base;
             result.porTarifa[tarifa].valor += valor;
 
-            if (cp === '6') {
-                result.noObjetoIVA += base;
-            } else if (cp === '7') {
-                result.exentoIVA += base;
-            } else if (cp === '0' || tarifa === '0') {
+            if (tarifa === '0') {
                 result.base0 += base;
             } else {
                 result.baseIVA  += base;
@@ -148,6 +164,17 @@ function calcularImpuestos(totalImpuestos) {
     });
 
     return result;
+}
+
+// ── Direcciones del emisor en los tickets ──────────────────────────────────────
+// El RIDE lleva la dirección matriz y, si es otra, la del establecimiento.
+function lineasDireccion(infoTrib, datosExtra) {
+    const matriz = String(infoTrib?.dirMatriz || '').trim();
+    const estab  = String(datosExtra?.dirEstablecimiento || '').trim();
+    return [
+        matriz && `Matriz: ${matriz}`,
+        estab && estab !== matriz && `Sucursal: ${estab}`,
+    ].filter(Boolean);
 }
 
 // ── Parsear campo adicional ────────────────────────────────────────────────────
@@ -234,6 +261,8 @@ module.exports = {
     DOCS_SUSTENTO,
     detectarTipo,
     calcularImpuestos,
+    tarifasVisibles,
+    lineasDireccion,
     parsearCampoAdicional,
     getAmbiente,
     getUrlConsulta,
